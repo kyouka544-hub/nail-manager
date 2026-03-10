@@ -215,6 +215,28 @@
     .cal-day-detail-sub { font-size: 12px; color: var(--gray); margin-top: 2px; }
     .cal-day-detail-amount { font-weight: 700; white-space: nowrap; }
 
+    /* SIZE SECTION */
+    .size-section { margin-top: 16px; }
+    .size-section-title { font-size: 13px; font-weight: 600; color: var(--pink-dark); margin-bottom: 8px; }
+    .size-table { width: 100%; border-collapse: collapse; }
+    .size-table th { font-size: 12px; color: var(--gray); font-weight: 600; padding: 6px 8px; border-bottom: 2px solid var(--border); text-align: left; }
+    .size-table td { padding: 8px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .size-label { font-size: 14px; font-weight: 700; color: var(--text); }
+    .size-checkbox-wrap { display: flex; align-items: center; gap: 6px; }
+    .size-checkbox { width: 18px; height: 18px; accent-color: var(--pink); cursor: pointer; }
+    .size-note-input { width: 100%; padding: 6px 8px; border: 1.5px solid var(--border); border-radius: 6px; font-size: 12px; font-family: inherit; transition: border-color 0.2s; background: var(--white); }
+    .size-note-input:focus { outline: none; border-color: var(--pink); }
+    .size-note-input:disabled { background: var(--gray-light); color: var(--gray); }
+    .size-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+    .size-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; background: var(--pink-light); color: var(--pink-dark); border: 1.5px solid var(--pink); }
+    .size-badge-note { font-size: 11px; font-weight: 400; color: var(--gray); margin-left: 2px; }
+    .size-detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .size-detail-table th { color: var(--gray); font-weight: 600; padding: 5px 8px; border-bottom: 1.5px solid var(--border); text-align: left; font-size: 12px; }
+    .size-detail-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    .size-detail-table tr.unavailable { color: var(--gray); opacity: 0.5; }
+    .size-avail { color: #388e3c; font-weight: 700; }
+    .size-unavail { color: #bbb; }
+
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: var(--gray-light); }
     ::-webkit-scrollbar-thumb { background: var(--pink); border-radius: 3px; }
@@ -498,7 +520,18 @@ create policy "own expenses" on public.expenses for all using (auth.uid() = user
           <label>ステータス</label>
           <select id="chip-status"><option value="unlisted">未出品</option><option value="available">出品中</option><option value="sold">売却済み</option></select>
         </div>
-        <div class="form-group"><label>サイズ展開</label><input type="text" id="chip-size" placeholder="例: XS-XL"></div>
+        <div class="form-group form-full size-section">
+          <div class="size-section-title">📐 サイズ展開</div>
+          <table class="size-table">
+            <thead><tr><th>サイズ</th><th>在庫あり</th><th>メモ（指幅など）</th></tr></thead>
+            <tbody id="size-table-body">
+              <tr><td><span class="size-label">XS</span></td><td><label class="size-checkbox-wrap"><input type="checkbox" class="size-checkbox" id="size-xs-chk" onchange="toggleSizeNote('xs')"> あり</label></td><td><input type="text" class="size-note-input" id="size-xs-note" placeholder="例: 9,8,8,7,7,7,7,7,8,9" disabled></td></tr>
+              <tr><td><span class="size-label">S</span></td><td><label class="size-checkbox-wrap"><input type="checkbox" class="size-checkbox" id="size-s-chk" onchange="toggleSizeNote('s')"> あり</label></td><td><input type="text" class="size-note-input" id="size-s-note" placeholder="例: 11,10,9,8,8,8,8,8,9,10" disabled></td></tr>
+              <tr><td><span class="size-label">M</span></td><td><label class="size-checkbox-wrap"><input type="checkbox" class="size-checkbox" id="size-m-chk" onchange="toggleSizeNote('m')"> あり</label></td><td><input type="text" class="size-note-input" id="size-m-note" placeholder="例: 13,12,11,10,9,9,9,9,10,11" disabled></td></tr>
+              <tr><td><span class="size-label">L</span></td><td><label class="size-checkbox-wrap"><input type="checkbox" class="size-checkbox" id="size-l-chk" onchange="toggleSizeNote('l')"> あり</label></td><td><input type="text" class="size-note-input" id="size-l-note" placeholder="例: 15,14,13,12,11,11,11,11,12,13" disabled></td></tr>
+            </tbody>
+          </table>
+        </div>
         <div class="form-group form-full"><label>説明・メモ</label><textarea id="chip-desc" placeholder="デザインの詳細など..."></textarea></div>
       </div>
       <div class="calc-box" style="margin-top:16px;">
@@ -793,6 +826,7 @@ function chipCardHTML(c) {
       <div class="chip-name">${escHtml(c.name)}</div>
       <div class="chip-price">${c.price ? fmt(c.price) : '未設定'}</div>
       <span class="status-badge ${sC[c.status]||'status-unlisted'}">${sL[c.status]||'未出品'}</span>
+      ${getSizeBadges(c.size)}
     </div>
   </div>`;
 }
@@ -837,17 +871,88 @@ function openChipModal(id = null) {
       document.getElementById('chip-cost').value = c.cost || '';
       document.getElementById('chip-price').value = c.price || '';
       document.getElementById('chip-status').value = c.status || 'unlisted';
-      document.getElementById('chip-size').value = c.size || '';
+      loadSizeFields(c.size || '');
       document.getElementById('chip-desc').value = c.desc || '';
       if (c.images) { c.images.forEach((img, i) => pendingImages.push({ dataUrl: img, name: 'img' + i })); renderImgPreview(); }
     }
   } else {
     document.getElementById('chip-num').value = nextChipNumber();
-    ['chip-name','chip-cost','chip-price','chip-size','chip-desc'].forEach(i => document.getElementById(i).value = '');
+    ['chip-name','chip-cost','chip-price','chip-desc'].forEach(i => document.getElementById(i).value = '');
     document.getElementById('chip-status').value = 'unlisted';
+    loadSizeFields('');
   }
   updateChipCalc();
   document.getElementById('modal-chip').classList.add('open');
+}
+
+// ===== SIZE HELPERS =====
+const SIZE_KEYS = ['xs', 's', 'm', 'l'];
+const SIZE_LABELS = { xs: 'XS', s: 'S', m: 'M', l: 'L' };
+
+function toggleSizeNote(key) {
+  const chk = document.getElementById(`size-${key}-chk`);
+  const note = document.getElementById(`size-${key}-note`);
+  note.disabled = !chk.checked;
+  if (!chk.checked) note.value = '';
+}
+
+function loadSizeFields(sizeStr) {
+  let data = {};
+  if (sizeStr) {
+    try { data = JSON.parse(sizeStr); } catch(e) {
+      // 旧フォーマット（テキスト）の場合はリセット
+      data = {};
+    }
+  }
+  SIZE_KEYS.forEach(key => {
+    const chk = document.getElementById(`size-${key}-chk`);
+    const note = document.getElementById(`size-${key}-note`);
+    const info = data[key] || { available: false, note: '' };
+    chk.checked = !!info.available;
+    note.value = info.note || '';
+    note.disabled = !chk.checked;
+  });
+}
+
+function collectSizeData() {
+  const data = {};
+  SIZE_KEYS.forEach(key => {
+    const chk = document.getElementById(`size-${key}-chk`);
+    const note = document.getElementById(`size-${key}-note`);
+    data[key] = { available: chk.checked, note: note.value.trim() };
+  });
+  return JSON.stringify(data);
+}
+
+function renderSizeDetail(sizeStr) {
+  if (!sizeStr) return '<span style="color:var(--gray)">-</span>';
+  let data = {};
+  try { data = JSON.parse(sizeStr); } catch(e) {
+    return `<span>${escHtml(sizeStr)}</span>`;
+  }
+  const available = SIZE_KEYS.filter(k => data[k]?.available);
+  if (available.length === 0) return '<span style="color:var(--gray)">未設定</span>';
+  const rows = SIZE_KEYS.map(key => {
+    const info = data[key] || {};
+    const avail = !!info.available;
+    return `<tr class="${avail ? '' : 'unavailable'}">
+      <td><strong>${SIZE_LABELS[key]}</strong></td>
+      <td>${avail ? '<span class="size-avail">✓ あり</span>' : '<span class="size-unavail">－</span>'}</td>
+      <td style="font-size:12px;color:var(--gray)">${escHtml(info.note || '')}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="size-detail-table"><thead><tr><th>サイズ</th><th>在庫</th><th>メモ</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function getSizeBadges(sizeStr) {
+  if (!sizeStr) return '';
+  try {
+    const data = JSON.parse(sizeStr);
+    const available = SIZE_KEYS.filter(k => data[k]?.available);
+    return available.length > 0
+      ? `<div class="size-badges">${available.map(k => `<span class="size-badge">${SIZE_LABELS[k]}</span>`).join('')}</div>`
+      : '';
+  } catch(e) { return sizeStr ? `<small style="color:var(--gray)">${escHtml(sizeStr)}</small>` : ''; }
 }
 
 function nextChipNumber() {
@@ -868,7 +973,7 @@ async function saveChip() {
       cost: parseFloat(document.getElementById('chip-cost').value) || 0,
       price: parseFloat(document.getElementById('chip-price').value) || 0,
       status: document.getElementById('chip-status').value,
-      size: document.getElementById('chip-size').value.trim(),
+      size: collectSizeData(),
       desc: document.getElementById('chip-desc').value.trim(),
       images: pendingImages.map(i => i.dataUrl),
       updatedAt: now,
@@ -909,7 +1014,7 @@ function openChipDetail(id) {
     <div class="chip-detail-row"><div class="label">販売価格</div><div class="value">${c.price ? fmt(c.price) : '未設定'}</div></div>
     <div class="chip-detail-row"><div class="label">材料費・原価</div><div class="value">${c.cost ? fmt(c.cost) : '未設定'}</div></div>
     <div class="chip-detail-row"><div class="label">予想利益</div><div class="value" style="color:${profit>=0?'#388e3c':'#c62828'}">${c.price ? fmt(profit) : '-'}</div></div>
-    <div class="chip-detail-row"><div class="label">サイズ</div><div class="value">${escHtml(c.size || '-')}</div></div>
+    <div class="chip-detail-row" style="grid-column:1/-1"><div class="label">サイズ展開</div><div class="value">${renderSizeDetail(c.size)}</div></div>
     ${c.desc ? `<div class="chip-detail-row" style="grid-column:1/-1"><div class="label">説明</div><div class="value" style="font-size:13px;white-space:pre-wrap">${escHtml(c.desc)}</div></div>` : ''}
   `;
   document.getElementById('detail-edit-btn').onclick = () => { closeModal('modal-chip-detail'); openChipModal(id); };
