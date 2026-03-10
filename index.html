@@ -253,6 +253,18 @@
     .sizemaster-dim-value { font-size: 14px; font-weight: 700; color: var(--text); }
     .sizemaster-dim-memo { font-size: 11px; color: var(--gray); margin-top: 2px; }
 
+    /* LISTING */
+    .listing-text-card { background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+    .listing-text-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+    .listing-text-name { font-size: 15px; font-weight: 700; color: var(--text); }
+    .listing-text-body { font-size: 13px; color: #555; line-height: 1.7; white-space: pre-wrap; max-height: 120px; overflow-y: auto; background: var(--gray-light); border-radius: 8px; padding: 10px 12px; }
+    .listing-img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 14px; }
+    .listing-img-item { position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 1; background: var(--gray-light); }
+    .listing-img-item img { width: 100%; height: 100%; object-fit: cover; cursor: pointer; transition: opacity 0.2s; }
+    .listing-img-item img:hover { opacity: 0.82; }
+    .listing-img-item .img-del { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+    .listing-img-name { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.48); color: white; font-size: 10px; padding: 3px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: var(--gray-light); }
     ::-webkit-scrollbar-thumb { background: var(--pink); border-radius: 3px; }
@@ -380,6 +392,7 @@ create policy "own expenses" on public.expenses for all using (auth.uid() = user
     <button class="nav-btn" onclick="showPage('calculator')">🧮 価格計算</button>
     <button class="nav-btn" onclick="showPage('calendar')">📅 カレンダー</button>
     <button class="nav-btn" onclick="showPage('sizemasters')">📐 サイズマスター</button>
+    <button class="nav-btn" onclick="showPage('listing')">📦 出品用</button>
   </nav>
 
   <div class="main">
@@ -531,7 +544,55 @@ create policy "own expenses" on public.expenses for all using (auth.uid() = user
       </div>
     </div>
 
+    <!-- LISTING -->
+    <div id="page-listing" class="page">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <h2 style="margin:0">📝 出品テキスト</h2>
+          <button class="btn btn-primary btn-sm" onclick="openListingTextModal()">＋ テンプレート追加</button>
+        </div>
+        <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">出品時によく使う文章を保存しておけます。コピーボタンでワンタップでコピー。</p>
+        <div id="listing-text-list"></div>
+      </div>
+      <div class="card">
+        <h2>🖼️ 出品用画像</h2>
+        <p style="font-size:13px;color:var(--gray);margin-bottom:12px;">出品時に使う画像を置いておけます。タップで拡大表示。</p>
+        <div class="image-upload-area" onclick="document.getElementById('listing-img-input').click()">
+          <div class="upload-icon">📁</div>
+          <p>クリックして画像を追加（複数可）</p>
+        </div>
+        <input type="file" id="listing-img-input" accept="image/*" multiple style="display:none" onchange="addListingImages(this)">
+        <div id="listing-img-grid" class="listing-img-grid"></div>
+      </div>
+    </div>
+
   </div><!-- end main -->
+
+  <!-- MODAL: LISTING TEXT -->
+  <div class="modal-overlay" id="modal-listing-text">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-listing-text-title">📝 テンプレート追加</h2>
+        <button class="modal-close" onclick="closeModal('modal-listing-text')">×</button>
+      </div>
+      <div class="form-grid">
+        <div class="form-group form-full"><label>テンプレート名</label><input type="text" id="lt-name" placeholder="例: メルカリ用 定型文"></div>
+        <div class="form-group form-full"><label>本文</label><textarea id="lt-body" style="min-height:200px" placeholder="出品文章を入力..."></textarea></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="saveListingText()">保存</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-listing-text')">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: LISTING IMAGE VIEW -->
+  <div class="modal-overlay" id="modal-listing-img-view" style="background:rgba(0,0,0,0.88)">
+    <div style="position:relative;max-width:90vw;max-height:90vh;display:flex;align-items:center;justify-content:center;">
+      <img id="listing-img-view-src" style="max-width:90vw;max-height:85vh;object-fit:contain;border-radius:10px;">
+      <button onclick="closeModal('modal-listing-img-view')" style="position:absolute;top:-14px;right:-14px;background:white;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.3);line-height:1;">×</button>
+    </div>
+  </div>
 
   <!-- MODAL: SIZE MASTER -->
   <div class="modal-overlay" id="modal-sizemaster">
@@ -843,6 +904,7 @@ function showPage(name) {
   if (name === 'expenses') renderExpenses();
   if (name === 'calendar') renderCalendar();
   if (name === 'sizemasters') renderSizeMasters();
+  if (name === 'listing') renderListing();
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
@@ -1501,6 +1563,122 @@ function showCalDayDetail(dateStr,data){
   data.chips.forEach(c=>{html+=`<div class="cal-day-detail-item chip"><div class="cal-day-detail-icon">💅</div><div class="cal-day-detail-body"><div class="cal-day-detail-title">[No.${escHtml(c.number)}] ${escHtml(c.name)}</div><div class="cal-day-detail-sub">チップ追加</div></div><div class="cal-day-detail-amount" style="color:var(--pink-dark)">${c.price?fmt(c.price):'-'}</div></div>`;});
   content.innerHTML=html; panel.style.display='';
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ===== LISTING =====
+let listingTexts = JSON.parse(localStorage.getItem('nail_listing_texts') || '[]');
+let listingImages = JSON.parse(localStorage.getItem('nail_listing_images') || '[]');
+let editingListingTextId = null;
+
+function saveListingTextsLS() { localStorage.setItem('nail_listing_texts', JSON.stringify(listingTexts)); }
+function saveListingImagesLS() { localStorage.setItem('nail_listing_images', JSON.stringify(listingImages)); }
+
+function renderListing() { renderListingTexts(); renderListingImages(); }
+
+function renderListingTexts() {
+  const el = document.getElementById('listing-text-list');
+  if (listingTexts.length === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📝</div><p>テンプレートがまだありません</p></div>';
+    return;
+  }
+  el.innerHTML = listingTexts.map(t => `
+    <div class="listing-text-card">
+      <div class="listing-text-header">
+        <div class="listing-text-name">${escHtml(t.name)}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm" onclick="copyListingText('${t.id}')">📋 コピー</button>
+          <button class="btn btn-secondary btn-sm" onclick="openListingTextModal('${t.id}')">編集</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteListingText('${t.id}')">削除</button>
+        </div>
+      </div>
+      <div class="listing-text-body">${escHtml(t.body)}</div>
+    </div>
+  `).join('');
+}
+
+function renderListingImages() {
+  const el = document.getElementById('listing-img-grid');
+  if (listingImages.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = listingImages.map(img => `
+    <div class="listing-img-item">
+      <img src="${img.data}" alt="${escHtml(img.name)}" onclick="viewListingImg('${img.id}')">
+      <div class="listing-img-name">${escHtml(img.name)}</div>
+      <button class="img-del" onclick="deleteListingImage('${img.id}')">×</button>
+    </div>
+  `).join('');
+}
+
+function openListingTextModal(id) {
+  editingListingTextId = id || null;
+  const t = id ? listingTexts.find(x => x.id === id) : null;
+  document.getElementById('modal-listing-text-title').textContent = t ? '📝 テンプレート編集' : '📝 テンプレート追加';
+  document.getElementById('lt-name').value = t ? t.name : '';
+  document.getElementById('lt-body').value = t ? t.body : '';
+  document.getElementById('modal-listing-text').classList.add('open');
+}
+
+function saveListingText() {
+  const name = document.getElementById('lt-name').value.trim();
+  const body = document.getElementById('lt-body').value.trim();
+  if (!name) { showToast('テンプレート名を入力してください', 'error'); return; }
+  if (editingListingTextId) {
+    const t = listingTexts.find(x => x.id === editingListingTextId);
+    if (t) { t.name = name; t.body = body; }
+  } else {
+    listingTexts.push({ id: Date.now().toString(), name, body });
+  }
+  saveListingTextsLS();
+  renderListingTexts();
+  closeModal('modal-listing-text');
+  showToast('保存しました', 'success');
+}
+
+function deleteListingText(id) {
+  if (!confirm('このテンプレートを削除しますか？')) return;
+  listingTexts = listingTexts.filter(t => t.id !== id);
+  saveListingTextsLS();
+  renderListingTexts();
+  showToast('削除しました');
+}
+
+function copyListingText(id) {
+  const t = listingTexts.find(x => x.id === id);
+  if (!t) return;
+  navigator.clipboard.writeText(t.body).then(() => showToast('コピーしました！', 'success'));
+}
+
+function addListingImages(input) {
+  const files = Array.from(input.files);
+  let done = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      listingImages.push({ id: Date.now().toString() + Math.random().toString(36).slice(2), name: file.name, data: e.target.result });
+      done++;
+      if (done === files.length) {
+        saveListingImagesLS();
+        renderListingImages();
+        showToast(`${files.length}枚追加しました`, 'success');
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function deleteListingImage(id) {
+  if (!confirm('この画像を削除しますか？')) return;
+  listingImages = listingImages.filter(i => i.id !== id);
+  saveListingImagesLS();
+  renderListingImages();
+  showToast('削除しました');
+}
+
+function viewListingImg(id) {
+  const img = listingImages.find(i => i.id === id);
+  if (!img) return;
+  document.getElementById('listing-img-view-src').src = img.data;
+  document.getElementById('modal-listing-img-view').classList.add('open');
 }
 
 // ===== INIT =====
