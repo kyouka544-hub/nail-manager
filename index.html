@@ -236,6 +236,22 @@
     .size-detail-table tr.unavailable { color: var(--gray); opacity: 0.5; }
     .size-avail { color: #388e3c; font-weight: 700; }
     .size-unavail { color: #bbb; }
+    .sm-dim-input { width: 64px; padding: 6px 6px; border: 1.5px solid var(--border); border-radius: 6px; font-size: 12px; font-family: inherit; text-align: center; transition: border-color 0.2s; }
+    .sm-dim-input:focus { outline: none; border-color: var(--pink); }
+    .sm-dim-input:disabled { background: var(--gray-light); color: var(--gray); }
+    .sm-memo-input { width: 100%; padding: 6px 8px; border: 1.5px solid var(--border); border-radius: 6px; font-size: 12px; font-family: inherit; transition: border-color 0.2s; }
+    .sm-memo-input:focus { outline: none; border-color: var(--pink); }
+    .sm-preset-select { padding: 5px 8px; border: 1.5px solid var(--border); border-radius: 6px; font-size: 12px; font-family: inherit; background: var(--white); color: var(--text); cursor: pointer; max-width: 220px; }
+    .sm-preset-select:focus { outline: none; border-color: var(--pink); }
+    .sizemaster-card { background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+    .sizemaster-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+    .sizemaster-card-name { font-size: 16px; font-weight: 700; color: var(--text); }
+    .sizemaster-card-shape { font-size: 12px; color: var(--gray); margin-top: 2px; }
+    .sizemaster-dim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+    .sizemaster-dim-item { background: var(--pink-light); border-radius: 8px; padding: 8px 12px; text-align: center; }
+    .sizemaster-dim-label { font-size: 13px; font-weight: 700; color: var(--pink-dark); margin-bottom: 4px; }
+    .sizemaster-dim-value { font-size: 14px; font-weight: 700; color: var(--text); }
+    .sizemaster-dim-memo { font-size: 11px; color: var(--gray); margin-top: 2px; }
 
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: var(--gray-light); }
@@ -363,6 +379,7 @@ create policy "own expenses" on public.expenses for all using (auth.uid() = user
     <button class="nav-btn" onclick="showPage('expenses')">🧾 支出管理</button>
     <button class="nav-btn" onclick="showPage('calculator')">🧮 価格計算</button>
     <button class="nav-btn" onclick="showPage('calendar')">📅 カレンダー</button>
+    <button class="nav-btn" onclick="showPage('sizemasters')">📐 サイズマスター</button>
   </nav>
 
   <div class="main">
@@ -502,7 +519,50 @@ create policy "own expenses" on public.expenses for all using (auth.uid() = user
       </div>
     </div>
 
+    <!-- SIZE MASTERS -->
+    <div id="page-sizemasters" class="page">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <h2 style="margin:0">📐 サイズマスター</h2>
+          <button class="btn btn-primary btn-sm" onclick="openSizeMasterModal()">＋ 新規登録</button>
+        </div>
+        <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">チップの型・メーカーごとに標準サイズ（幅×縦 mm）を登録しておけます。チップ編集時にプリセットとして呼び出せます。</p>
+        <div id="sizemaster-list"></div>
+      </div>
+    </div>
+
   </div><!-- end main -->
+
+  <!-- MODAL: SIZE MASTER -->
+  <div class="modal-overlay" id="modal-sizemaster">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-sizemaster-title">📐 サイズマスター登録</h2>
+        <button class="modal-close" onclick="closeModal('modal-sizemaster')">×</button>
+      </div>
+      <div class="form-grid">
+        <div class="form-group form-full"><label>名前 * <small style="font-weight:400;color:var(--gray)">例: ◯◯メーカー アーモンド型</small></label><input type="text" id="sm-name" placeholder="例: セリア ショートスクエア"></div>
+        <div class="form-group form-full"><label>形状メモ</label><input type="text" id="sm-shape" placeholder="例: アーモンド / スクエア / ラウンドなど"></div>
+      </div>
+      <div style="margin-top:12px;">
+        <div class="size-section-title" style="margin-bottom:8px;">各サイズの寸法</div>
+        <table class="size-table">
+          <thead><tr><th>サイズ</th><th>幅 (mm)</th><th>縦 (mm)</th><th>メモ</th></tr></thead>
+          <tbody>
+            <tr><td><span class="size-label">XS</span></td><td><input type="number" class="sm-dim-input" id="sm-xs-w" placeholder="9" min="0" step="0.1"></td><td><input type="number" class="sm-dim-input" id="sm-xs-h" placeholder="23" min="0" step="0.1"></td><td><input type="text" class="sm-memo-input" id="sm-xs-memo" placeholder="メモ（任意）"></td></tr>
+            <tr><td><span class="size-label">S</span></td><td><input type="number" class="sm-dim-input" id="sm-s-w" placeholder="11" min="0" step="0.1"></td><td><input type="number" class="sm-dim-input" id="sm-s-h" placeholder="25" min="0" step="0.1"></td><td><input type="text" class="sm-memo-input" id="sm-s-memo" placeholder="メモ（任意）"></td></tr>
+            <tr><td><span class="size-label">M</span></td><td><input type="number" class="sm-dim-input" id="sm-m-w" placeholder="13" min="0" step="0.1"></td><td><input type="number" class="sm-dim-input" id="sm-m-h" placeholder="27" min="0" step="0.1"></td><td><input type="text" class="sm-memo-input" id="sm-m-memo" placeholder="メモ（任意）"></td></tr>
+            <tr><td><span class="size-label">L</span></td><td><input type="number" class="sm-dim-input" id="sm-l-w" placeholder="15" min="0" step="0.1"></td><td><input type="number" class="sm-dim-input" id="sm-l-h" placeholder="29" min="0" step="0.1"></td><td><input type="text" class="sm-memo-input" id="sm-l-memo" placeholder="メモ（任意）"></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="sm-save-btn" onclick="saveSizeMaster()">保存</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-sizemaster')">キャンセル</button>
+        <button class="btn btn-danger" id="sm-delete-btn" onclick="deleteSizeMaster()" style="display:none;margin-left:auto">削除</button>
+      </div>
+    </div>
+  </div>
 
   <!-- MODAL: CHIP -->
   <div class="modal-overlay" id="modal-chip">
@@ -521,14 +581,21 @@ create policy "own expenses" on public.expenses for all using (auth.uid() = user
           <select id="chip-status"><option value="unlisted">未出品</option><option value="available">出品中</option><option value="sold">売却済み</option></select>
         </div>
         <div class="form-group form-full size-section">
-          <div class="size-section-title">📐 サイズ展開</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <div class="size-section-title" style="margin:0">📐 サイズ展開</div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <select id="sm-preset-select" class="sm-preset-select" onchange="applySizeMasterPreset()">
+                <option value="">-- プリセットから選択 --</option>
+              </select>
+            </div>
+          </div>
           <table class="size-table">
-            <thead><tr><th>サイズ</th><th>在庫あり</th><th>メモ（指幅など）</th></tr></thead>
+            <thead><tr><th>サイズ</th><th>在庫あり</th><th>幅 (mm)</th><th>縦 (mm)</th><th>メモ</th></tr></thead>
             <tbody id="size-table-body">
-              <tr><td><span class="size-label">XS</span></td><td><label class="size-checkbox-wrap"><input type="checkbox" class="size-checkbox" id="size-xs-chk" onchange="toggleSizeNote('xs')"> あり</label></td><td><input type="text" class="size-note-input" id="size-xs-note" placeholder="例: 9,8,8,7,7,7,7,7,8,9" disabled></td></tr>
-              <tr><td><span class="size-label">S</span></td><td><label class="size-checkbox-wrap"><input type="checkbox" class="size-checkbox" id="size-s-chk" onchange="toggleSizeNote('s')"> あり</label></td><td><input type="text" class="size-note-input" id="size-s-note" placeholder="例: 11,10,9,8,8,8,8,8,9,10" disabled></td></tr>
-              <tr><td><span class="size-label">M</span></td><td><label class="size-checkbox-wrap"><input type="checkbox" class="size-checkbox" id="size-m-chk" onchange="toggleSizeNote('m')"> あり</label></td><td><input type="text" class="size-note-input" id="size-m-note" placeholder="例: 13,12,11,10,9,9,9,9,10,11" disabled></td></tr>
-              <tr><td><span class="size-label">L</span></td><td><label class="size-checkbox-wrap"><input type="checkbox" class="size-checkbox" id="size-l-chk" onchange="toggleSizeNote('l')"> あり</label></td><td><input type="text" class="size-note-input" id="size-l-note" placeholder="例: 15,14,13,12,11,11,11,11,12,13" disabled></td></tr>
+              <tr><td><span class="size-label">XS</span></td><td><label class="size-checkbox-wrap"><input type="checkbox" class="size-checkbox" id="size-xs-chk" onchange="toggleSizeNote('xs')"> あり</label></td><td><input type="number" class="sm-dim-input" id="size-xs-w" placeholder="幅" min="0" step="0.1" disabled></td><td><input type="number" class="sm-dim-input" id="size-xs-h" placeholder="縦" min="0" step="0.1" disabled></td><td><input type="text" class="size-note-input" id="size-xs-note" placeholder="メモ" disabled></td></tr>
+              <tr><td><span class="size-label">S</span></td><td><label class="size-checkbox-wrap"><input type="checkbox" class="size-checkbox" id="size-s-chk" onchange="toggleSizeNote('s')"> あり</label></td><td><input type="number" class="sm-dim-input" id="size-s-w" placeholder="幅" min="0" step="0.1" disabled></td><td><input type="number" class="sm-dim-input" id="size-s-h" placeholder="縦" min="0" step="0.1" disabled></td><td><input type="text" class="size-note-input" id="size-s-note" placeholder="メモ" disabled></td></tr>
+              <tr><td><span class="size-label">M</span></td><td><label class="size-checkbox-wrap"><input type="checkbox" class="size-checkbox" id="size-m-chk" onchange="toggleSizeNote('m')"> あり</label></td><td><input type="number" class="sm-dim-input" id="size-m-w" placeholder="幅" min="0" step="0.1" disabled></td><td><input type="number" class="sm-dim-input" id="size-m-h" placeholder="縦" min="0" step="0.1" disabled></td><td><input type="text" class="size-note-input" id="size-m-note" placeholder="メモ" disabled></td></tr>
+              <tr><td><span class="size-label">L</span></td><td><label class="size-checkbox-wrap"><input type="checkbox" class="size-checkbox" id="size-l-chk" onchange="toggleSizeNote('l')"> あり</label></td><td><input type="number" class="sm-dim-input" id="size-l-w" placeholder="幅" min="0" step="0.1" disabled></td><td><input type="number" class="sm-dim-input" id="size-l-h" placeholder="縦" min="0" step="0.1" disabled></td><td><input type="text" class="size-note-input" id="size-l-note" placeholder="メモ" disabled></td></tr>
             </tbody>
           </table>
         </div>
@@ -734,6 +801,8 @@ async function loadData() {
     chips = (c.data || []).map(chipFromDb);
     sales = (s.data || []).map(saleFromDb);
     expenses = (e.data || []).map(expenseFromDb);
+    loadSizeMasters();
+    updateSizeMasterPreset();
     renderDashboard();
   } catch (e) { toast('読み込みエラー: ' + e.message, 'error'); }
   setSaving(false);
@@ -773,6 +842,7 @@ function showPage(name) {
   if (name === 'sales') renderSales();
   if (name === 'expenses') renderExpenses();
   if (name === 'calendar') renderCalendar();
+  if (name === 'sizemasters') renderSizeMasters();
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
@@ -882,6 +952,8 @@ function openChipModal(id = null) {
     loadSizeFields('');
   }
   updateChipCalc();
+  updateSizeMasterPreset();
+  document.getElementById('sm-preset-select').value = '';
   document.getElementById('modal-chip').classList.add('open');
 }
 
@@ -891,26 +963,23 @@ const SIZE_LABELS = { xs: 'XS', s: 'S', m: 'M', l: 'L' };
 
 function toggleSizeNote(key) {
   const chk = document.getElementById(`size-${key}-chk`);
-  const note = document.getElementById(`size-${key}-note`);
-  note.disabled = !chk.checked;
-  if (!chk.checked) note.value = '';
+  ['note','w','h'].forEach(f => {
+    const el = document.getElementById(`size-${key}-${f}`);
+    if (el) { el.disabled = !chk.checked; if (!chk.checked) el.value = ''; }
+  });
 }
 
 function loadSizeFields(sizeStr) {
   let data = {};
-  if (sizeStr) {
-    try { data = JSON.parse(sizeStr); } catch(e) {
-      // 旧フォーマット（テキスト）の場合はリセット
-      data = {};
-    }
-  }
+  if (sizeStr) { try { data = JSON.parse(sizeStr); } catch(e) { data = {}; } }
   SIZE_KEYS.forEach(key => {
     const chk = document.getElementById(`size-${key}-chk`);
-    const note = document.getElementById(`size-${key}-note`);
-    const info = data[key] || { available: false, note: '' };
+    const info = data[key] || { available: false, w: '', h: '', note: '' };
     chk.checked = !!info.available;
-    note.value = info.note || '';
-    note.disabled = !chk.checked;
+    ['note','w','h'].forEach(f => {
+      const el = document.getElementById(`size-${key}-${f}`);
+      if (el) { el.value = info[f] || ''; el.disabled = !chk.checked; }
+    });
   });
 }
 
@@ -918,8 +987,15 @@ function collectSizeData() {
   const data = {};
   SIZE_KEYS.forEach(key => {
     const chk = document.getElementById(`size-${key}-chk`);
+    const w = document.getElementById(`size-${key}-w`);
+    const h = document.getElementById(`size-${key}-h`);
     const note = document.getElementById(`size-${key}-note`);
-    data[key] = { available: chk.checked, note: note.value.trim() };
+    data[key] = {
+      available: chk.checked,
+      w: w ? (parseFloat(w.value) || '') : '',
+      h: h ? (parseFloat(h.value) || '') : '',
+      note: note ? note.value.trim() : ''
+    };
   });
   return JSON.stringify(data);
 }
@@ -927,21 +1003,21 @@ function collectSizeData() {
 function renderSizeDetail(sizeStr) {
   if (!sizeStr) return '<span style="color:var(--gray)">-</span>';
   let data = {};
-  try { data = JSON.parse(sizeStr); } catch(e) {
-    return `<span>${escHtml(sizeStr)}</span>`;
-  }
+  try { data = JSON.parse(sizeStr); } catch(e) { return `<span>${escHtml(sizeStr)}</span>`; }
   const available = SIZE_KEYS.filter(k => data[k]?.available);
   if (available.length === 0) return '<span style="color:var(--gray)">未設定</span>';
   const rows = SIZE_KEYS.map(key => {
     const info = data[key] || {};
     const avail = !!info.available;
+    const dim = (info.w || info.h) ? `${info.w || '?'}mm × ${info.h || '?'}mm` : '';
     return `<tr class="${avail ? '' : 'unavailable'}">
       <td><strong>${SIZE_LABELS[key]}</strong></td>
       <td>${avail ? '<span class="size-avail">✓ あり</span>' : '<span class="size-unavail">－</span>'}</td>
+      <td style="font-size:12px;color:var(--text);font-weight:${dim?'600':'400'}">${dim || '-'}</td>
       <td style="font-size:12px;color:var(--gray)">${escHtml(info.note || '')}</td>
     </tr>`;
   }).join('');
-  return `<table class="size-detail-table"><thead><tr><th>サイズ</th><th>在庫</th><th>メモ</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table class="size-detail-table"><thead><tr><th>サイズ</th><th>在庫</th><th>寸法</th><th>メモ</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function getSizeBadges(sizeStr) {
@@ -953,6 +1029,137 @@ function getSizeBadges(sizeStr) {
       ? `<div class="size-badges">${available.map(k => `<span class="size-badge">${SIZE_LABELS[k]}</span>`).join('')}</div>`
       : '';
   } catch(e) { return sizeStr ? `<small style="color:var(--gray)">${escHtml(sizeStr)}</small>` : ''; }
+}
+
+// ===== SIZE MASTER (localStorage) =====
+let sizeMasters = [];
+let editingSmId = null;
+
+function loadSizeMasters() {
+  try { sizeMasters = JSON.parse(localStorage.getItem('nailSizeMasters') || '[]'); } catch(e) { sizeMasters = []; }
+}
+
+function saveSizeMastersToStorage() {
+  localStorage.setItem('nailSizeMasters', JSON.stringify(sizeMasters));
+}
+
+function renderSizeMasters() {
+  const el = document.getElementById('sizemaster-list');
+  if (!el) return;
+  if (sizeMasters.length === 0) {
+    el.innerHTML = '<p style="color:var(--gray);font-size:13px;text-align:center;padding:24px 0;">まだ登録がありません。「新規登録」から追加してください。</p>';
+    return;
+  }
+  el.innerHTML = sizeMasters.map(sm => {
+    const dims = SIZE_KEYS.map(key => {
+      const info = sm.sizes[key] || {};
+      if (!info.w && !info.h && !info.note) return '';
+      const dim = (info.w || info.h) ? `${info.w || '?'}×${info.h || '?'}mm` : '';
+      return `<div class="sizemaster-dim-item">
+        <div class="sizemaster-dim-label">${SIZE_LABELS[key]}</div>
+        <div class="sizemaster-dim-value">${dim || '-'}</div>
+        ${info.note ? `<div class="sizemaster-dim-memo">${escHtml(info.note)}</div>` : ''}
+      </div>`;
+    }).filter(Boolean).join('');
+    return `<div class="sizemaster-card">
+      <div class="sizemaster-card-header">
+        <div>
+          <div class="sizemaster-card-name">${escHtml(sm.name)}</div>
+          ${sm.shape ? `<div class="sizemaster-card-shape">${escHtml(sm.shape)}</div>` : ''}
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="openSizeMasterModal('${sm.id}')">編集</button>
+      </div>
+      <div class="sizemaster-dim-grid">${dims || '<span style="color:var(--gray);font-size:13px;">寸法未設定</span>'}</div>
+    </div>`;
+  }).join('');
+}
+
+function openSizeMasterModal(id = null) {
+  editingSmId = id;
+  document.getElementById('modal-sizemaster-title').textContent = id ? '📐 サイズマスター編集' : '📐 サイズマスター登録';
+  document.getElementById('sm-delete-btn').style.display = id ? 'block' : 'none';
+  if (id) {
+    const sm = sizeMasters.find(x => x.id === id);
+    if (sm) {
+      document.getElementById('sm-name').value = sm.name;
+      document.getElementById('sm-shape').value = sm.shape || '';
+      SIZE_KEYS.forEach(key => {
+        const info = sm.sizes[key] || {};
+        const w = document.getElementById(`sm-${key}-w`); if (w) w.value = info.w || '';
+        const h = document.getElementById(`sm-${key}-h`); if (h) h.value = info.h || '';
+        const m = document.getElementById(`sm-${key}-memo`); if (m) m.value = info.note || '';
+      });
+    }
+  } else {
+    document.getElementById('sm-name').value = '';
+    document.getElementById('sm-shape').value = '';
+    SIZE_KEYS.forEach(key => {
+      ['w','h','memo'].forEach(f => { const el = document.getElementById(`sm-${key}-${f}`); if (el) el.value = ''; });
+    });
+  }
+  document.getElementById('modal-sizemaster').classList.add('open');
+}
+
+function saveSizeMaster() {
+  const name = document.getElementById('sm-name').value.trim();
+  if (!name) { toast('名前は必須です', 'error'); return; }
+  const sizes = {};
+  SIZE_KEYS.forEach(key => {
+    const w = document.getElementById(`sm-${key}-w`);
+    const h = document.getElementById(`sm-${key}-h`);
+    const m = document.getElementById(`sm-${key}-memo`);
+    sizes[key] = { w: parseFloat(w?.value) || '', h: parseFloat(h?.value) || '', note: m?.value.trim() || '' };
+  });
+  const sm = { id: editingSmId || genId(), name, shape: document.getElementById('sm-shape').value.trim(), sizes };
+  if (editingSmId) {
+    const idx = sizeMasters.findIndex(x => x.id === editingSmId);
+    if (idx !== -1) sizeMasters[idx] = sm;
+  } else {
+    sizeMasters.push(sm);
+  }
+  saveSizeMastersToStorage();
+  renderSizeMasters();
+  updateSizeMasterPreset();
+  closeModal('modal-sizemaster');
+  toast(editingSmId ? 'サイズマスターを更新しました' : 'サイズマスターを登録しました', 'success');
+}
+
+function deleteSizeMaster() {
+  if (!confirm('このサイズマスターを削除しますか？')) return;
+  sizeMasters = sizeMasters.filter(x => x.id !== editingSmId);
+  saveSizeMastersToStorage();
+  renderSizeMasters();
+  updateSizeMasterPreset();
+  closeModal('modal-sizemaster');
+  toast('削除しました');
+}
+
+function updateSizeMasterPreset() {
+  const sel = document.getElementById('sm-preset-select');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">-- プリセットから選択 --</option>' +
+    sizeMasters.map(sm => `<option value="${sm.id}">${escHtml(sm.name)}</option>`).join('');
+  sel.value = cur;
+}
+
+function applySizeMasterPreset() {
+  const sel = document.getElementById('sm-preset-select');
+  const sm = sizeMasters.find(x => x.id === sel.value);
+  if (!sm) return;
+  SIZE_KEYS.forEach(key => {
+    const info = sm.sizes[key] || {};
+    const hasData = info.w || info.h || info.note;
+    const chk = document.getElementById(`size-${key}-chk`);
+    if (hasData) {
+      chk.checked = true;
+      ['w','h','note'].forEach(f => {
+        const el = document.getElementById(`size-${key}-${f}`);
+        if (el) { el.disabled = false; el.value = f === 'note' ? (info.note || '') : (info[f] || ''); }
+      });
+    }
+  });
+  toast(`「${sm.name}」のサイズを適用しました`, 'success');
 }
 
 function nextChipNumber() {
