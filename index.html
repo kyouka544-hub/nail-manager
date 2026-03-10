@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ネイルチップ管理</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --pink: #f06292; --pink-light: #fce4ec; --pink-dark: #c2185b;
+      --purple: #ce93d8; --bg: #fdf6f9; --white: #ffffff;
+      --gray: #757575; --gray-light: #f5f5f5; --text: #333;
+      --border: #e0c8d5; --shadow: 0 2px 8px rgba(240,98,146,0.12); --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Hiragino Sans', 'Meiryo', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* AUTH SCREENS */
+    .fullscreen {
+      position: fixed; inset: 0; z-index: 9000;
+      background: linear-gradient(135deg, #fce4ec, #f3e5f5);
+      display: flex; align-items: center; justify-content: center; padding: 16px;
+    }
+    .auth-card {
+      background: white; border-radius: 20px; padding: 40px 36px;
+      max-width: 540px; width: 100%; box-shadow: 0 12px 40px rgba(240,98,146,0.18);
+    }
+    .auth-card .logo { font-size: 56px; text-align: center; margin-bottom: 12px; }
+    .auth-card h1 { font-size: 22px; color: var(--pink-dark); text-align: center; margin-bottom: 6px; }
+    .auth-card .subtitle { font-size: 13px; color: var(--gray); text-align: center; margin-bottom: 28px; }
+    .btn-google {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 14px; background: white; border: 2px solid #ddd;
+      border-radius: 10px; cursor: pointer; font-size: 15px; font-family: inherit;
+      font-weight: 600; transition: all 0.2s;
+    }
+    .btn-google:hover { border-color: var(--pink); background: var(--pink-light); }
+    .setup-steps {
+      background: var(--gray-light); border-radius: 10px; padding: 16px;
+      margin-bottom: 20px; font-size: 13px; line-height: 1.9;
+    }
+    .setup-steps ol { padding-left: 18px; }
+    .setup-steps li { margin-bottom: 2px; }
+    .setup-steps code {
+      background: #fff; border: 1px solid var(--border); border-radius: 4px;
+      padding: 6px 10px; font-size: 11px; display: block;
+      margin: 6px 0; white-space: pre; overflow-x: auto; line-height: 1.6; color: #333;
+    }
+    .setup-link { color: var(--pink-dark); font-weight: 700; }
+    .setup-input {
+      width: 100%; padding: 10px 12px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 13px; font-family: monospace; margin-bottom: 10px;
+    }
+    .setup-input:focus { outline: none; border-color: var(--pink); }
+    .setup-reset { font-size: 12px; color: var(--gray); cursor: pointer; text-decoration: underline; margin-top: 10px; display: inline-block; }
+
+    /* LOADING */
+    .loading-overlay {
+      position: fixed; inset: 0; z-index: 9500; background: rgba(255,255,255,0.85);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .spinner { width: 44px; height: 44px; border: 4px solid var(--pink-light); border-top-color: var(--pink); border-radius: 50%; animation: spin 0.75s linear infinite; margin-bottom: 12px; }
+    .spinner-sm { width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.75s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* HEADER */
+    .header { background: linear-gradient(135deg, var(--pink), var(--purple)); color: white; padding: 12px 20px; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 12px rgba(240,98,146,0.3); }
+    .header-icon { font-size: 26px; }
+    .header h1 { font-size: 18px; font-weight: 700; }
+    .header-user { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .header-avatar { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); object-fit: cover; }
+    .header-name { font-size: 13px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .header-saving { font-size: 12px; opacity: 0.8; display: flex; align-items: center; gap: 6px; }
+    .btn-logout { padding: 5px 12px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit; transition: all 0.2s; }
+    .btn-logout:hover { background: rgba(255,255,255,0.3); }
+
+    /* NAV */
+    .nav { background: var(--white); border-bottom: 2px solid var(--pink-light); display: flex; overflow-x: auto; padding: 0 8px; }
+    .nav-btn { padding: 14px 18px; border: none; background: none; cursor: pointer; font-size: 14px; color: var(--gray); white-space: nowrap; border-bottom: 3px solid transparent; transition: all 0.2s; font-family: inherit; }
+    .nav-btn:hover { color: var(--pink); }
+    .nav-btn.active { color: var(--pink); border-bottom-color: var(--pink); font-weight: 700; }
+
+    /* MAIN */
+    .main { padding: 20px; max-width: 1000px; margin: 0 auto; }
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* CARDS */
+    .card { background: var(--white); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); margin-bottom: 16px; }
+    .card h2 { font-size: 16px; color: var(--pink-dark); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+    /* STATS */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat-card { background: var(--white); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); text-align: center; border-top: 4px solid var(--pink); }
+    .stat-card.green { border-top-color: #66bb6a; } .stat-card.red { border-top-color: #ef5350; }
+    .stat-card.purple { border-top-color: var(--purple); } .stat-card.blue { border-top-color: #42a5f5; }
+    .stat-label { font-size: 12px; color: var(--gray); margin-bottom: 8px; }
+    .stat-value { font-size: 24px; font-weight: 700; color: var(--text); }
+    .stat-value.green { color: #388e3c; } .stat-value.red { color: #c62828; }
+
+    /* BUTTONS */
+    .btn { padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-family: inherit; font-weight: 600; transition: all 0.2s; }
+    .btn-primary { background: var(--pink); color: white; } .btn-primary:hover { background: var(--pink-dark); }
+    .btn-secondary { background: var(--gray-light); color: var(--text); } .btn-secondary:hover { background: #e0e0e0; }
+    .btn-danger { background: #ffebee; color: #c62828; } .btn-danger:hover { background: #ffcdd2; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* FORMS */
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group label { font-size: 13px; font-weight: 600; color: var(--pink-dark); }
+    .form-group input, .form-group select, .form-group textarea { padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; transition: border-color 0.2s; background: var(--white); }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--pink); }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .form-full { grid-column: 1 / -1; }
+    .form-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+
+    /* CALC */
+    .calc-box { background: var(--pink-light); border-radius: var(--radius); padding: 16px; margin-top: 16px; }
+    .calc-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px solid rgba(240,98,146,0.2); }
+    .calc-row:last-child { border-bottom: none; }
+    .calc-row.total { font-weight: 700; font-size: 16px; color: var(--pink-dark); border-top: 2px solid var(--pink); margin-top: 4px; padding-top: 8px; }
+    .calc-row.profit-pos { color: #388e3c; font-weight: 700; }
+    .calc-row.profit-neg { color: #c62828; font-weight: 700; }
+
+    /* IMAGE */
+    .image-upload-area { border: 2px dashed var(--border); border-radius: var(--radius); padding: 24px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--gray-light); }
+    .image-upload-area:hover { border-color: var(--pink); background: var(--pink-light); }
+    .image-upload-area .upload-icon { font-size: 36px; margin-bottom: 8px; }
+    .image-upload-area p { font-size: 13px; color: var(--gray); }
+    .image-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-top: 12px; }
+    .image-preview-item { position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 1; }
+    .image-preview-item img { width: 100%; height: 100%; object-fit: cover; }
+    .image-preview-item .remove-img { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+
+    /* CHIP CARDS */
+    .chip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+    .chip-card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; border: 2px solid transparent; }
+    .chip-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(240,98,146,0.2); }
+    .chip-card-img { width: 100%; height: 150px; background: var(--pink-light); display: flex; align-items: center; justify-content: center; font-size: 40px; }
+    .chip-card-img img { width: 100%; height: 100%; object-fit: cover; }
+    .chip-card-body { padding: 12px; }
+    .chip-number { font-size: 11px; color: var(--gray); }
+    .chip-name { font-size: 15px; font-weight: 700; margin: 4px 0; }
+    .chip-price { font-size: 16px; color: var(--pink-dark); font-weight: 700; }
+    .status-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; margin-top: 6px; }
+    .status-available { background: #e8f5e9; color: #388e3c; }
+    .status-sold { background: #fce4ec; color: var(--pink-dark); }
+    .status-unlisted { background: #f5f5f5; color: #757575; }
+
+    /* TABLE */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { background: var(--pink-light); color: var(--pink-dark); padding: 10px 12px; text-align: left; font-weight: 700; white-space: nowrap; }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:hover td { background: #fff5f8; }
+    .td-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    /* MODAL */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--white); border-radius: var(--radius); padding: 24px; max-width: 700px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-header h2 { font-size: 18px; color: var(--pink-dark); }
+    .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--gray); line-height: 1; }
+
+    /* FILTER */
+    .filter-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .filter-bar input, .filter-bar select { padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit; background: var(--white); }
+    .filter-bar input:focus, .filter-bar select:focus { outline: none; border-color: var(--pink); }
+    .filter-bar input { flex: 1; min-width: 160px; }
+
+    /* EMPTY */
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--gray); }
+    .empty-state .empty-icon { font-size: 60px; margin-bottom: 16px; }
+    .empty-state p { font-size: 15px; margin-bottom: 20px; }
+
+    /* TOAST */
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #333; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 2000; opacity: 0; transform: translateY(20px); transition: all 0.3s; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { background: #388e3c; }
+    .toast.error { background: #c62828; }
+
+    /* CHIP DETAIL */
+    .chip-detail-img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-bottom: 16px; }
+    .chip-detail-img-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; cursor: pointer; }
+    .chip-detail-info { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .chip-detail-row { padding: 10px; background: var(--gray-light); border-radius: 8px; }
+    .chip-detail-row .label { font-size: 11px; color: var(--gray); margin-bottom: 4px; }
+    .chip-detail-row .value { font-size: 15px; font-weight: 600; }
+
+    /* CALENDAR */
+    .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 2px; }
+    .cal-weekday { text-align: center; font-size: 12px; font-weight: 700; padding: 6px 0; color: var(--gray); }
+    .cal-weekday:first-child { color: #ef5350; } .cal-weekday:last-child { color: #42a5f5; }
+    .cal-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+    .cal-day { min-height: 80px; border-radius: 8px; background: var(--gray-light); padding: 6px; cursor: pointer; transition: background 0.15s, transform 0.15s; border: 2px solid transparent; }
+    .cal-day:hover { background: var(--pink-light); transform: scale(1.02); }
+    .cal-day.today { border-color: var(--pink); background: #fff5f8; }
+    .cal-day.other-month { opacity: 0.35; }
+    .cal-day.selected { border-color: var(--pink-dark); background: var(--pink-light); }
+    .cal-day-num { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .cal-day.sun .cal-day-num { color: #ef5350; } .cal-day.sat .cal-day-num { color: #42a5f5; }
+    .cal-dot-list { display: flex; flex-direction: column; gap: 2px; }
+    .cal-dot-item { font-size: 10px; padding: 2px 5px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cal-dot-item.sale { background: #e8f5e9; color: #388e3c; }
+    .cal-dot-item.expense { background: #ffebee; color: #c62828; }
+    .cal-dot-item.chip { background: var(--pink-light); color: var(--pink-dark); }
+    .cal-day-detail-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; font-size: 14px; }
+    .cal-day-detail-item.sale { background: #e8f5e9; } .cal-day-detail-item.expense { background: #ffebee; } .cal-day-detail-item.chip { background: var(--pink-light); }
+    .cal-day-detail-icon { font-size: 20px; }
+    .cal-day-detail-body { flex: 1; }
+    .cal-day-detail-title { font-weight: 700; }
+    .cal-day-detail-sub { font-size: 12px; color: var(--gray); margin-top: 2px; }
+    .cal-day-detail-amount { font-weight: 700; white-space: nowrap; }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--gray-light); }
+    ::-webkit-scrollbar-thumb { background: var(--pink); border-radius: 3px; }
+
+    @media (max-width: 480px) {
+      .main { padding: 12px; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .chip-grid { grid-template-columns: 1fr 1fr; }
+      .header-name { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-screen" class="loading-overlay">
+  <div class="spinner"></div>
+  <p style="color:var(--gray);font-size:14px;">読み込み中...</p>
+</div>
+
+<!-- SETUP -->
+<div id="setup-screen" class="fullscreen" style="display:none">
+  <div class="auth-card" style="max-width:580px;overflow-y:auto;max-height:95vh;">
+    <div class="logo">💅</div>
+    <h1>Supabase 初期設定</h1>
+    <p class="subtitle">複数デバイスでデータを共有するための設定です</p>
+
+    <div class="setup-steps">
+      <b>手順（5分で完了）</b>
+      <ol>
+        <li><a href="https://supabase.com" target="_blank" class="setup-link">supabase.com</a> でプロジェクトを作成</li>
+        <li>Settings → API → <b>Project URL</b> と <b>anon public</b> キーをコピー</li>
+        <li>SQL Editor → New query → 以下を貼り付けて <b>Run</b>:<code>create table public.chips (
+  id text primary key,
+  user_id uuid references auth.users not null,
+  number text not null default '',
+  name text not null default '',
+  cost numeric not null default 0,
+  price numeric not null default 0,
+  status text not null default 'unlisted',
+  size text not null default '',
+  description text not null default '',
+  images jsonb not null default '[]',
+  created_at text not null default '',
+  updated_at text not null default ''
+);
+create table public.sales (
+  id text primary key,
+  user_id uuid references auth.users not null,
+  date text not null default '',
+  chip_id text,
+  chip_name text not null default '',
+  chip_number text not null default '',
+  price numeric not null default 0,
+  cost numeric not null default 0,
+  note text not null default '',
+  created_at text not null default ''
+);
+create table public.expenses (
+  id text primary key,
+  user_id uuid references auth.users not null,
+  date text not null default '',
+  category text not null default '',
+  amount numeric not null default 0,
+  description text not null default '',
+  created_at text not null default ''
+);
+alter table public.chips enable row level security;
+alter table public.sales enable row level security;
+alter table public.expenses enable row level security;
+create policy "own chips" on public.chips for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own sales" on public.sales for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own expenses" on public.expenses for all using (auth.uid() = user_id) with check (auth.uid() = user_id);</code></li>
+        <li>Authentication → Providers → <b>Google</b> を有効化</li>
+        <li>Authentication → URL Configuration → <b>Redirect URLs</b> に GitHub Pages URL を追加<br>（例: <b>https://あなたのID.github.io/nail-manager</b>）</li>
+      </ol>
+    </div>
+
+    <div class="form-group" style="margin-bottom:10px;">
+      <label style="color:var(--pink-dark);font-weight:700;font-size:13px;">Project URL</label>
+      <input class="setup-input" id="setup-url" type="text" placeholder="https://xxxxxxxxxxxx.supabase.co">
+    </div>
+    <div class="form-group" style="margin-bottom:16px;">
+      <label style="color:var(--pink-dark);font-weight:700;font-size:13px;">anon public キー</label>
+      <input class="setup-input" id="setup-key" type="text" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:14px;" onclick="saveConfig()">設定を保存してサインイン画面へ</button>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen" class="fullscreen" style="display:none">
+  <div class="auth-card">
+    <div class="logo">💅</div>
+    <h1>ネイルチップ管理</h1>
+    <p class="subtitle">Googleアカウントでサインインしてください</p>
+    <button class="btn-google" onclick="signInWithGoogle()">
+      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34.5 6.9 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16.1 19 13 24 13c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34.5 6.9 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.3 35.3 26.8 36 24 36c-5.3 0-9.7-3.4-11.3-8.1l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4 5.5l6.2 5.2C43 34.8 44 29.7 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+      Googleでサインイン
+    </button>
+    <p style="text-align:center;margin-top:16px;">
+      <span class="setup-reset" onclick="resetConfig()">Supabase設定を変更する</span>
+    </p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <div class="header">
+    <div class="header-icon">💅</div>
+    <h1>ネイルチップ管理</h1>
+    <div class="header-user">
+      <span id="saving-indicator" class="header-saving" style="display:none"><span class="spinner-sm"></span>保存中</span>
+      <img id="user-avatar" class="header-avatar" style="display:none" alt="">
+      <span id="user-name" class="header-name"></span>
+      <button class="btn-logout" onclick="doSignOut()">ログアウト</button>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <button class="nav-btn active" onclick="showPage('dashboard')">📊 ダッシュボード</button>
+    <button class="nav-btn" onclick="showPage('chips')">💅 ネイルチップ</button>
+    <button class="nav-btn" onclick="showPage('sales')">💰 売上管理</button>
+    <button class="nav-btn" onclick="showPage('expenses')">🧾 支出管理</button>
+    <button class="nav-btn" onclick="showPage('calculator')">🧮 価格計算</button>
+    <button class="nav-btn" onclick="showPage('calendar')">📅 カレンダー</button>
+  </nav>
+
+  <div class="main">
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">出品中</div><div class="stat-value" id="dash-available">0</div></div>
+        <div class="stat-card purple"><div class="stat-label">総作品数</div><div class="stat-value" id="dash-total">0</div></div>
+        <div class="stat-card green"><div class="stat-label">総売上</div><div class="stat-value green" id="dash-revenue">¥0</div></div>
+        <div class="stat-card red"><div class="stat-label">総支出</div><div class="stat-value red" id="dash-expenses">¥0</div></div>
+        <div class="stat-card blue"><div class="stat-label">純利益</div><div class="stat-value" id="dash-profit">¥0</div></div>
+        <div class="stat-card"><div class="stat-label">売却済み</div><div class="stat-value" id="dash-sold">0</div></div>
+      </div>
+      <div class="card"><h2>📋 最近の売上</h2><div id="dash-recent-sales"></div></div>
+      <div class="card"><h2>💅 出品中のチップ</h2><div id="dash-available-chips" class="chip-grid"></div></div>
+    </div>
+
+    <!-- CHIPS -->
+    <div id="page-chips" class="page">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h2 style="margin:0">💅 ネイルチップ一覧</h2>
+          <button class="btn btn-primary" onclick="openChipModal()">＋ 新規追加</button>
+        </div>
+        <div class="filter-bar">
+          <input type="text" id="chip-search" placeholder="番号・名前で検索..." oninput="renderChips()">
+          <select id="chip-filter-status" onchange="renderChips()">
+            <option value="">すべて</option><option value="available">出品中</option>
+            <option value="sold">売却済み</option><option value="unlisted">未出品</option>
+          </select>
+          <select id="chip-view" onchange="renderChips()">
+            <option value="grid">グリッド表示</option><option value="table">テーブル表示</option>
+          </select>
+        </div>
+        <div id="chips-container"></div>
+      </div>
+    </div>
+
+    <!-- SALES -->
+    <div id="page-sales" class="page">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h2 style="margin:0">💰 売上管理</h2>
+          <button class="btn btn-primary" onclick="openSaleModal()">＋ 売上追加</button>
+        </div>
+        <div class="filter-bar"><select id="sale-filter-month" onchange="renderSales()"><option value="">すべての月</option></select></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>日付</th><th>チップ番号</th><th>チップ名</th><th>販売価格</th><th>メルカリ手数料</th><th>純利益</th><th>メモ</th><th></th></tr></thead>
+          <tbody id="sales-tbody"></tbody></table>
+        </div>
+        <div id="sales-empty" class="empty-state" style="display:none"><div class="empty-icon">💰</div><p>売上記録がありません</p></div>
+      </div>
+    </div>
+
+    <!-- EXPENSES -->
+    <div id="page-expenses" class="page">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h2 style="margin:0">🧾 支出管理</h2>
+          <button class="btn btn-primary" onclick="openExpenseModal()">＋ 支出追加</button>
+        </div>
+        <div class="filter-bar">
+          <select id="expense-filter-month" onchange="renderExpenses()"><option value="">すべての月</option></select>
+          <select id="expense-filter-cat" onchange="renderExpenses()">
+            <option value="">すべてのカテゴリ</option><option value="材料費">材料費</option><option value="道具">道具</option>
+            <option value="梱包材">梱包材</option><option value="送料">送料</option><option value="その他">その他</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table><thead><tr><th>日付</th><th>カテゴリ</th><th>金額</th><th>内容</th><th></th></tr></thead>
+          <tbody id="expenses-tbody"></tbody></table>
+        </div>
+        <div id="expenses-empty" class="empty-state" style="display:none"><div class="empty-icon">🧾</div><p>支出記録がありません</p></div>
+        <div id="expense-total" style="text-align:right;margin-top:12px;font-size:15px;font-weight:700;color:var(--pink-dark);"></div>
+      </div>
+    </div>
+
+    <!-- CALCULATOR -->
+    <div id="page-calculator" class="page">
+      <div class="card">
+        <h2>🧮 価格計算ツール</h2>
+        <p style="font-size:13px;color:var(--gray);margin-bottom:20px;">メルカリの手数料(10%)を考慮した利益計算</p>
+        <div class="form-grid">
+          <div class="form-group"><label>材料費・原価 (円)</label><input type="number" id="calc-cost" placeholder="0" oninput="calcPrice()" min="0"></div>
+          <div class="form-group"><label>販売価格 (円)</label><input type="number" id="calc-price" placeholder="0" oninput="calcPrice()" min="0"></div>
+          <div class="form-group"><label>送料 (円)</label><input type="number" id="calc-shipping" placeholder="0" oninput="calcPrice()" min="0"></div>
+          <div class="form-group"><label>梱包材費 (円)</label><input type="number" id="calc-packing" placeholder="0" oninput="calcPrice()" min="0"></div>
+        </div>
+        <div class="calc-box">
+          <div class="calc-row"><span>販売価格</span><span id="cr-price">¥0</span></div>
+          <div class="calc-row"><span>メルカリ手数料 (10%)</span><span id="cr-fee">-¥0</span></div>
+          <div class="calc-row"><span>送料</span><span id="cr-shipping">-¥0</span></div>
+          <div class="calc-row"><span>材料費</span><span id="cr-cost">-¥0</span></div>
+          <div class="calc-row"><span>梱包材費</span><span id="cr-packing">-¥0</span></div>
+          <div class="calc-row total"><span>手取り利益</span><span id="cr-profit">¥0</span></div>
+        </div>
+        <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+          <h2>🎯 目標利益から逆算</h2>
+          <p style="font-size:13px;color:var(--gray);margin-bottom:16px;">希望する利益から最低販売価格を計算</p>
+          <div class="form-grid">
+            <div class="form-group"><label>希望利益 (円)</label><input type="number" id="rev-profit" placeholder="0" oninput="calcReverse()" min="0"></div>
+            <div class="form-group"><label>材料費・原価 (円)</label><input type="number" id="rev-cost" placeholder="0" oninput="calcReverse()" min="0"></div>
+            <div class="form-group"><label>送料 (円)</label><input type="number" id="rev-shipping" placeholder="0" oninput="calcReverse()" min="0"></div>
+            <div class="form-group"><label>梱包材費 (円)</label><input type="number" id="rev-packing" placeholder="0" oninput="calcReverse()" min="0"></div>
+          </div>
+          <div class="calc-box" style="margin-top:16px;">
+            <div class="calc-row total"><span>最低販売価格</span><span id="rev-result">¥0</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CALENDAR -->
+    <div id="page-calendar" class="page">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <h2 style="margin:0">📅 カレンダー</h2>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <button class="btn btn-secondary btn-sm" onclick="calPrev()">◀</button>
+            <span id="cal-month-label" style="font-size:16px;font-weight:700;color:var(--pink-dark);min-width:120px;text-align:center;"></span>
+            <button class="btn btn-secondary btn-sm" onclick="calNext()">▶</button>
+            <button class="btn btn-primary btn-sm" onclick="calToday()">今月</button>
+          </div>
+        </div>
+        <div id="cal-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px;"></div>
+        <div id="cal-grid"></div>
+        <div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap;font-size:12px;color:var(--gray);">
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#66bb6a;margin-right:4px;"></span>売上</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef5350;margin-right:4px;"></span>支出</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--pink);margin-right:4px;"></span>出品</span>
+        </div>
+      </div>
+      <div class="card" id="cal-day-detail" style="display:none;">
+        <h2 id="cal-day-title">📋 </h2>
+        <div id="cal-day-content"></div>
+      </div>
+    </div>
+
+  </div><!-- end main -->
+
+  <!-- MODAL: CHIP -->
+  <div class="modal-overlay" id="modal-chip">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-chip-title">💅 ネイルチップ追加</h2>
+        <button class="modal-close" onclick="closeModal('modal-chip')">×</button>
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label>チップ番号 *</label><input type="text" id="chip-num" placeholder="例: 001"></div>
+        <div class="form-group"><label>チップ名 *</label><input type="text" id="chip-name" placeholder="例: フレンチピンク"></div>
+        <div class="form-group"><label>材料費・原価 (円)</label><input type="number" id="chip-cost" placeholder="0" oninput="updateChipCalc()" min="0"></div>
+        <div class="form-group"><label>販売価格 (円)</label><input type="number" id="chip-price" placeholder="0" oninput="updateChipCalc()" min="0"></div>
+        <div class="form-group">
+          <label>ステータス</label>
+          <select id="chip-status"><option value="unlisted">未出品</option><option value="available">出品中</option><option value="sold">売却済み</option></select>
+        </div>
+        <div class="form-group"><label>サイズ展開</label><input type="text" id="chip-size" placeholder="例: XS-XL"></div>
+        <div class="form-group form-full"><label>説明・メモ</label><textarea id="chip-desc" placeholder="デザインの詳細など..."></textarea></div>
+      </div>
+      <div class="calc-box" style="margin-top:16px;">
+        <div class="calc-row"><span>販売価格</span><span id="chip-cr-price">¥0</span></div>
+        <div class="calc-row"><span>メルカリ手数料 (10%)</span><span id="chip-cr-fee">-¥0</span></div>
+        <div class="calc-row"><span>材料費</span><span id="chip-cr-cost">-¥0</span></div>
+        <div class="calc-row total" id="chip-cr-profit-row"><span>予想利益</span><span id="chip-cr-profit">¥0</span></div>
+      </div>
+      <div class="form-group form-full" style="margin-top:16px;">
+        <label>画像</label>
+        <div class="image-upload-area" onclick="document.getElementById('chip-img-input').click()">
+          <div class="upload-icon">📷</div>
+          <p>クリックして画像を追加<br><small>複数選択可・自動圧縮されます</small></p>
+        </div>
+        <input type="file" id="chip-img-input" accept="image/*" multiple style="display:none" onchange="handleImgUpload(event)">
+        <div class="image-preview-grid" id="chip-img-preview"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="chip-save-btn" onclick="saveChip()">保存</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-chip')">キャンセル</button>
+        <button class="btn btn-danger" id="chip-delete-btn" onclick="deleteChip()" style="display:none;margin-left:auto">削除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CHIP DETAIL -->
+  <div class="modal-overlay" id="modal-chip-detail">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="detail-title">チップ詳細</h2>
+        <button class="modal-close" onclick="closeModal('modal-chip-detail')">×</button>
+      </div>
+      <div id="detail-images"></div>
+      <div id="detail-info" class="chip-detail-info"></div>
+      <div class="form-actions" style="margin-top:16px;">
+        <button class="btn btn-primary" id="detail-edit-btn">編集</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-chip-detail')">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SALE -->
+  <div class="modal-overlay" id="modal-sale">
+    <div class="modal">
+      <div class="modal-header"><h2>💰 売上追加</h2><button class="modal-close" onclick="closeModal('modal-sale')">×</button></div>
+      <div class="form-grid">
+        <div class="form-group"><label>販売日 *</label><input type="date" id="sale-date"></div>
+        <div class="form-group"><label>チップ選択</label><select id="sale-chip" onchange="fillSalePrice()"><option value="">チップを選択...</option></select></div>
+        <div class="form-group"><label>販売価格 (円) *</label><input type="number" id="sale-price" placeholder="0" oninput="updateSaleCalc()" min="0"></div>
+        <div class="form-group"><label>材料費 (円)</label><input type="number" id="sale-cost" placeholder="0" oninput="updateSaleCalc()" min="0"></div>
+        <div class="form-group form-full"><label>メモ</label><input type="text" id="sale-note" placeholder="バイヤーへのメモなど"></div>
+      </div>
+      <div class="calc-box" style="margin-top:16px;">
+        <div class="calc-row"><span>販売価格</span><span id="sale-cr-price">¥0</span></div>
+        <div class="calc-row"><span>メルカリ手数料 (10%)</span><span id="sale-cr-fee">-¥0</span></div>
+        <div class="calc-row"><span>材料費</span><span id="sale-cr-cost">-¥0</span></div>
+        <div class="calc-row total"><span>純利益</span><span id="sale-cr-profit">¥0</span></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="sale-save-btn" onclick="saveSale()">保存</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-sale')">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EXPENSE -->
+  <div class="modal-overlay" id="modal-expense">
+    <div class="modal">
+      <div class="modal-header"><h2>🧾 支出追加</h2><button class="modal-close" onclick="closeModal('modal-expense')">×</button></div>
+      <div class="form-grid">
+        <div class="form-group"><label>日付 *</label><input type="date" id="exp-date"></div>
+        <div class="form-group">
+          <label>カテゴリ *</label>
+          <select id="exp-cat"><option value="材料費">材料費</option><option value="道具">道具</option><option value="梱包材">梱包材</option><option value="送料">送料</option><option value="その他">その他</option></select>
+        </div>
+        <div class="form-group"><label>金額 (円) *</label><input type="number" id="exp-amount" placeholder="0" min="0"></div>
+        <div class="form-group form-full"><label>内容</label><input type="text" id="exp-desc" placeholder="例: ジェルネイル購入"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="expense-save-btn" onclick="saveExpense()">保存</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-expense')">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end app -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== SUPABASE =====
+const { createClient } = supabase;
+let sb, currentUser;
+let chips = [], sales = [], expenses = [];
+let editingChipId = null, pendingImages = [];
+
+function getConfig() {
+  try { return JSON.parse(localStorage.getItem('nailSupabaseConfig') || 'null'); }
+  catch { return null; }
+}
+
+function initApp() {
+  const config = getConfig();
+  if (!config) { hide('loading-screen'); show('setup-screen'); return; }
+  try {
+    sb = createClient(config.url, config.key);
+    sb.auth.onAuthStateChange((event, session) => {
+      hide('loading-screen');
+      if (session?.user) {
+        currentUser = session.user;
+        const av = document.getElementById('user-avatar');
+        if (currentUser.user_metadata?.avatar_url) { av.src = currentUser.user_metadata.avatar_url; av.style.display = ''; }
+        document.getElementById('user-name').textContent = currentUser.user_metadata?.full_name || currentUser.email || '';
+        hide('login-screen'); show('app');
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') loadData();
+      } else {
+        currentUser = null;
+        hide('app'); show('login-screen');
+      }
+    });
+  } catch (e) {
+    hide('loading-screen');
+    alert('Supabase設定エラー: ' + e.message);
+    show('setup-screen');
+  }
+}
+
+function saveConfig() {
+  const url = document.getElementById('setup-url').value.trim();
+  const key = document.getElementById('setup-key').value.trim();
+  if (!url || !key) { alert('URLとキーを両方入力してください'); return; }
+  if (!url.startsWith('https://')) { alert('URLは https:// で始まる必要があります'); return; }
+  localStorage.setItem('nailSupabaseConfig', JSON.stringify({ url, key }));
+  hide('setup-screen'); show('loading-screen');
+  setTimeout(initApp, 100);
+}
+
+function resetConfig() {
+  if (!confirm('Supabase設定をリセットしますか？')) return;
+  localStorage.removeItem('nailSupabaseConfig');
+  if (sb) sb.auth.signOut();
+  hide('login-screen'); show('setup-screen');
+}
+
+async function signInWithGoogle() {
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: location.href.split('?')[0].split('#')[0] }
+  });
+  if (error) toast('サインインエラー: ' + error.message, 'error');
+}
+
+async function doSignOut() {
+  if (!confirm('ログアウトしますか？')) return;
+  await sb.auth.signOut();
+}
+
+// ===== DATA MAPPING =====
+const chipToDb = c => ({
+  id: c.id, user_id: currentUser.id,
+  number: c.number, name: c.name, cost: c.cost, price: c.price,
+  status: c.status, size: c.size || '', description: c.desc || '',
+  images: c.images || [], created_at: c.createdAt || '', updated_at: c.updatedAt || ''
+});
+const chipFromDb = r => ({
+  id: r.id, number: r.number, name: r.name, cost: r.cost, price: r.price,
+  status: r.status, size: r.size || '', desc: r.description || '',
+  images: r.images || [], createdAt: r.created_at, updatedAt: r.updated_at
+});
+const saleToDb = s => ({
+  id: s.id, user_id: currentUser.id, date: s.date,
+  chip_id: s.chipId || null, chip_name: s.chipName || '', chip_number: s.chipNumber || '',
+  price: s.price, cost: s.cost || 0, note: s.note || '', created_at: s.createdAt || ''
+});
+const saleFromDb = r => ({
+  id: r.id, date: r.date, chipId: r.chip_id, chipName: r.chip_name,
+  chipNumber: r.chip_number, price: r.price, cost: r.cost, note: r.note, createdAt: r.created_at
+});
+const expenseToDb = e => ({
+  id: e.id, user_id: currentUser.id, date: e.date,
+  category: e.category, amount: e.amount, description: e.desc || '', created_at: e.createdAt || ''
+});
+const expenseFromDb = r => ({
+  id: r.id, date: r.date, category: r.category, amount: r.amount, desc: r.description, createdAt: r.created_at
+});
+
+// ===== DB HELPERS =====
+async function loadData() {
+  setSaving(true);
+  try {
+    const uid = currentUser.id;
+    const [c, s, e] = await Promise.all([
+      sb.from('chips').select('*').eq('user_id', uid),
+      sb.from('sales').select('*').eq('user_id', uid),
+      sb.from('expenses').select('*').eq('user_id', uid),
+    ]);
+    if (c.error) throw c.error;
+    if (s.error) throw s.error;
+    if (e.error) throw e.error;
+    chips = (c.data || []).map(chipFromDb);
+    sales = (s.data || []).map(saleFromDb);
+    expenses = (e.data || []).map(expenseFromDb);
+    renderDashboard();
+  } catch (e) { toast('読み込みエラー: ' + e.message, 'error'); }
+  setSaving(false);
+}
+
+async function dbUpsert(table, data) {
+  const { error } = await sb.from(table).upsert(data);
+  if (error) throw error;
+}
+async function dbDelete(table, id) {
+  const { error } = await sb.from(table).delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ===== UTILS =====
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+function fmt(n) { return '¥' + Math.round(n).toLocaleString(); }
+function today() { return new Date().toISOString().slice(0, 10); }
+function show(id) { document.getElementById(id).style.display = ''; }
+function hide(id) { document.getElementById(id).style.display = 'none'; }
+function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function setSaving(on) { document.getElementById('saving-indicator').style.display = on ? 'flex' : 'none'; }
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = 'toast show ' + type;
+  setTimeout(() => el.className = 'toast', 2500);
+}
+
+// ===== NAV =====
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'chips') renderChips();
+  if (name === 'sales') renderSales();
+  if (name === 'expenses') renderExpenses();
+  if (name === 'calendar') renderCalendar();
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+// ===== DASHBOARD =====
+function renderDashboard() {
+  const available = chips.filter(c => c.status === 'available').length;
+  const sold = chips.filter(c => c.status === 'sold').length;
+  const totalRevenue = sales.reduce((s, x) => s + (x.price || 0), 0);
+  const totalExpenses = expenses.reduce((s, x) => s + (x.amount || 0), 0);
+  const totalFees = sales.reduce((s, x) => s + Math.round((x.price || 0) * 0.1), 0);
+  const totalCosts = sales.reduce((s, x) => s + (x.cost || 0), 0);
+  const profit = totalRevenue - totalFees - totalCosts - totalExpenses;
+  document.getElementById('dash-available').textContent = available;
+  document.getElementById('dash-total').textContent = chips.length;
+  document.getElementById('dash-revenue').textContent = fmt(totalRevenue);
+  document.getElementById('dash-expenses').textContent = fmt(totalExpenses + totalFees + totalCosts);
+  const profitEl = document.getElementById('dash-profit');
+  profitEl.textContent = fmt(profit);
+  profitEl.className = 'stat-value ' + (profit >= 0 ? 'green' : 'red');
+  document.getElementById('dash-sold').textContent = sold;
+  const recentSales = [...sales].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+  const rEl = document.getElementById('dash-recent-sales');
+  rEl.innerHTML = recentSales.length === 0 ? '<p style="color:var(--gray);font-size:14px;">売上記録がありません</p>' :
+    '<div class="table-wrap"><table><thead><tr><th>日付</th><th>チップ名</th><th>販売価格</th><th>利益</th></tr></thead><tbody>' +
+    recentSales.map(s => {
+      const chip = chips.find(c => c.id === s.chipId);
+      const fee = Math.round(s.price * 0.1), p = s.price - fee - (s.cost || 0);
+      return `<tr><td>${s.date}</td><td>${chip ? `[${chip.number}] ${chip.name}` : s.chipName || '-'}</td><td>${fmt(s.price)}</td><td style="color:${p>=0?'#388e3c':'#c62828'}">${fmt(p)}</td></tr>`;
+    }).join('') + '</tbody></table></div>';
+  const avChips = chips.filter(c => c.status === 'available').slice(0, 6);
+  document.getElementById('dash-available-chips').innerHTML = avChips.length === 0
+    ? '<p style="color:var(--gray);font-size:14px;">出品中のチップはありません</p>'
+    : avChips.map(chipCardHTML).join('');
+}
+
+// ===== CHIPS =====
+function chipCardHTML(c) {
+  const imgHtml = c.images && c.images.length > 0
+    ? `<div class="chip-card-img"><img src="${c.images[0]}" alt="${c.name}"></div>`
+    : `<div class="chip-card-img">💅</div>`;
+  const sL = { available: '出品中', sold: '売却済み', unlisted: '未出品' };
+  const sC = { available: 'status-available', sold: 'status-sold', unlisted: 'status-unlisted' };
+  return `<div class="chip-card" onclick="openChipDetail('${c.id}')">
+    ${imgHtml}
+    <div class="chip-card-body">
+      <div class="chip-number">No.${c.number}</div>
+      <div class="chip-name">${escHtml(c.name)}</div>
+      <div class="chip-price">${c.price ? fmt(c.price) : '未設定'}</div>
+      <span class="status-badge ${sC[c.status]||'status-unlisted'}">${sL[c.status]||'未出品'}</span>
+    </div>
+  </div>`;
+}
+
+function renderChips() {
+  const search = document.getElementById('chip-search').value.toLowerCase();
+  const filterStatus = document.getElementById('chip-filter-status').value;
+  const view = document.getElementById('chip-view').value;
+  let filtered = chips.filter(c => {
+    const ms = !search || c.number.toLowerCase().includes(search) || c.name.toLowerCase().includes(search);
+    return ms && (!filterStatus || c.status === filterStatus);
+  }).sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+  const container = document.getElementById('chips-container');
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">💅</div><p>チップがありません</p><button class="btn btn-primary" onclick="openChipModal()">＋ 最初のチップを追加</button></div>`;
+    return;
+  }
+  const sL = { available: '出品中', sold: '売却済み', unlisted: '未出品' };
+  const sC = { available: 'status-available', sold: 'status-sold', unlisted: 'status-unlisted' };
+  if (view === 'grid') {
+    container.innerHTML = `<div class="chip-grid">${filtered.map(chipCardHTML).join('')}</div>`;
+  } else {
+    container.innerHTML = `<div class="table-wrap"><table><thead><tr><th>番号</th><th>名前</th><th>原価</th><th>販売価格</th><th>予想利益</th><th>ステータス</th><th>操作</th></tr></thead><tbody>` +
+      filtered.map(c => {
+        const fee = c.price ? Math.round(c.price * 0.1) : 0;
+        const profit = c.price ? c.price - fee - (c.cost || 0) : 0;
+        return `<tr><td>${escHtml(c.number)}</td><td>${escHtml(c.name)}</td><td>${c.cost?fmt(c.cost):'-'}</td><td>${c.price?fmt(c.price):'-'}</td><td style="color:${profit>=0?'#388e3c':'#c62828'}">${c.price?fmt(profit):'-'}</td><td><span class="status-badge ${sC[c.status]||'status-unlisted'}">${sL[c.status]||'未出品'}</span></td><td><div class="td-actions"><button class="btn btn-sm btn-secondary" onclick="openChipDetail('${c.id}');event.stopPropagation()">詳細</button><button class="btn btn-sm btn-primary" onclick="openChipModal('${c.id}');event.stopPropagation()">編集</button></div></td></tr>`;
+      }).join('') + '</tbody></table></div>';
+  }
+}
+
+function openChipModal(id = null) {
+  editingChipId = id; pendingImages = [];
+  document.getElementById('chip-img-preview').innerHTML = '';
+  document.getElementById('modal-chip-title').textContent = id ? '💅 ネイルチップ編集' : '💅 ネイルチップ追加';
+  document.getElementById('chip-delete-btn').style.display = id ? 'block' : 'none';
+  if (id) {
+    const c = chips.find(x => x.id === id);
+    if (c) {
+      document.getElementById('chip-num').value = c.number;
+      document.getElementById('chip-name').value = c.name;
+      document.getElementById('chip-cost').value = c.cost || '';
+      document.getElementById('chip-price').value = c.price || '';
+      document.getElementById('chip-status').value = c.status || 'unlisted';
+      document.getElementById('chip-size').value = c.size || '';
+      document.getElementById('chip-desc').value = c.desc || '';
+      if (c.images) { c.images.forEach((img, i) => pendingImages.push({ dataUrl: img, name: 'img' + i })); renderImgPreview(); }
+    }
+  } else {
+    document.getElementById('chip-num').value = nextChipNumber();
+    ['chip-name','chip-cost','chip-price','chip-size','chip-desc'].forEach(i => document.getElementById(i).value = '');
+    document.getElementById('chip-status').value = 'unlisted';
+  }
+  updateChipCalc();
+  document.getElementById('modal-chip').classList.add('open');
+}
+
+function nextChipNumber() {
+  if (chips.length === 0) return '001';
+  return String(Math.max(...chips.map(c => parseInt(c.number) || 0)) + 1).padStart(3, '0');
+}
+
+async function saveChip() {
+  const num = document.getElementById('chip-num').value.trim();
+  const name = document.getElementById('chip-name').value.trim();
+  if (!num || !name) { toast('番号と名前は必須です', 'error'); return; }
+  const btn = document.getElementById('chip-save-btn');
+  btn.disabled = true; setSaving(true);
+  try {
+    const now = new Date().toISOString();
+    const chipData = {
+      id: editingChipId || genId(), number: num, name,
+      cost: parseFloat(document.getElementById('chip-cost').value) || 0,
+      price: parseFloat(document.getElementById('chip-price').value) || 0,
+      status: document.getElementById('chip-status').value,
+      size: document.getElementById('chip-size').value.trim(),
+      desc: document.getElementById('chip-desc').value.trim(),
+      images: pendingImages.map(i => i.dataUrl),
+      updatedAt: now,
+      createdAt: editingChipId ? (chips.find(c => c.id === editingChipId)?.createdAt || now) : now,
+    };
+    await dbUpsert('chips', chipToDb(chipData));
+    if (editingChipId) { const idx = chips.findIndex(c => c.id === editingChipId); if (idx !== -1) chips[idx] = chipData; }
+    else chips.push(chipData);
+    renderChips(); closeModal('modal-chip');
+    toast(editingChipId ? 'チップを更新しました ✨' : 'チップを追加しました ✨', 'success');
+  } catch (e) { toast('保存エラー: ' + e.message, 'error'); }
+  btn.disabled = false; setSaving(false);
+}
+
+async function deleteChip() {
+  if (!confirm('このチップを削除しますか？')) return;
+  setSaving(true);
+  try {
+    await dbDelete('chips', editingChipId);
+    chips = chips.filter(c => c.id !== editingChipId);
+    renderChips(); closeModal('modal-chip'); toast('チップを削除しました');
+  } catch (e) { toast('削除エラー: ' + e.message, 'error'); }
+  setSaving(false);
+}
+
+function openChipDetail(id) {
+  const c = chips.find(x => x.id === id); if (!c) return;
+  document.getElementById('detail-title').textContent = `[No.${c.number}] ${c.name}`;
+  document.getElementById('detail-images').innerHTML = c.images && c.images.length > 0
+    ? `<div class="chip-detail-img-grid">${c.images.map(img => `<img src="${img}" onclick="window.open('${img}')">`).join('')}</div>`
+    : '<p style="color:var(--gray);font-size:13px;margin-bottom:12px;">画像なし</p>';
+  const sL = { available: '出品中', sold: '売却済み', unlisted: '未出品' };
+  const fee = c.price ? Math.round(c.price * 0.1) : 0;
+  const profit = c.price ? c.price - fee - (c.cost || 0) : 0;
+  document.getElementById('detail-info').innerHTML = `
+    <div class="chip-detail-row"><div class="label">チップ番号</div><div class="value">No.${escHtml(c.number)}</div></div>
+    <div class="chip-detail-row"><div class="label">ステータス</div><div class="value">${sL[c.status]||'未出品'}</div></div>
+    <div class="chip-detail-row"><div class="label">販売価格</div><div class="value">${c.price ? fmt(c.price) : '未設定'}</div></div>
+    <div class="chip-detail-row"><div class="label">材料費・原価</div><div class="value">${c.cost ? fmt(c.cost) : '未設定'}</div></div>
+    <div class="chip-detail-row"><div class="label">予想利益</div><div class="value" style="color:${profit>=0?'#388e3c':'#c62828'}">${c.price ? fmt(profit) : '-'}</div></div>
+    <div class="chip-detail-row"><div class="label">サイズ</div><div class="value">${escHtml(c.size || '-')}</div></div>
+    ${c.desc ? `<div class="chip-detail-row" style="grid-column:1/-1"><div class="label">説明</div><div class="value" style="font-size:13px;white-space:pre-wrap">${escHtml(c.desc)}</div></div>` : ''}
+  `;
+  document.getElementById('detail-edit-btn').onclick = () => { closeModal('modal-chip-detail'); openChipModal(id); };
+  document.getElementById('modal-chip-detail').classList.add('open');
+}
+
+function updateChipCalc() {
+  const price = parseFloat(document.getElementById('chip-price').value) || 0;
+  const cost = parseFloat(document.getElementById('chip-cost').value) || 0;
+  const fee = Math.round(price * 0.1), profit = price - fee - cost;
+  document.getElementById('chip-cr-price').textContent = fmt(price);
+  document.getElementById('chip-cr-fee').textContent = '-' + fmt(fee);
+  document.getElementById('chip-cr-cost').textContent = '-' + fmt(cost);
+  document.getElementById('chip-cr-profit').textContent = fmt(profit);
+  document.getElementById('chip-cr-profit-row').className = 'calc-row total ' + (profit >= 0 ? 'profit-pos' : 'profit-neg');
+}
+
+// ===== IMAGE =====
+function compressImage(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 700, scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleImgUpload(event) {
+  for (const file of Array.from(event.target.files)) {
+    pendingImages.push({ dataUrl: await compressImage(file), name: file.name });
+    renderImgPreview();
+  }
+  event.target.value = '';
+}
+
+function renderImgPreview() {
+  document.getElementById('chip-img-preview').innerHTML = pendingImages.map((img, i) =>
+    `<div class="image-preview-item"><img src="${img.dataUrl}" alt="${img.name}"><button class="remove-img" onclick="removeImg(${i})">×</button></div>`
+  ).join('');
+}
+function removeImg(i) { pendingImages.splice(i, 1); renderImgPreview(); }
+
+// ===== SALES =====
+function openSaleModal() {
+  document.getElementById('sale-date').value = today();
+  ['sale-price','sale-cost','sale-note'].forEach(i => document.getElementById(i).value = '');
+  document.getElementById('sale-chip').innerHTML = '<option value="">チップを選択...</option>' +
+    chips.map(c => `<option value="${c.id}" data-price="${c.price||0}" data-cost="${c.cost||0}">[No.${c.number}] ${escHtml(c.name)} ${c.price?'('+fmt(c.price)+')':''}</option>`).join('');
+  updateSaleCalc();
+  document.getElementById('modal-sale').classList.add('open');
+}
+
+function fillSalePrice() {
+  const opt = document.getElementById('sale-chip').options[document.getElementById('sale-chip').selectedIndex];
+  if (opt?.dataset.price) {
+    document.getElementById('sale-price').value = opt.dataset.price;
+    document.getElementById('sale-cost').value = opt.dataset.cost;
+    updateSaleCalc();
+  }
+}
+
+function updateSaleCalc() {
+  const price = parseFloat(document.getElementById('sale-price').value) || 0;
+  const cost = parseFloat(document.getElementById('sale-cost').value) || 0;
+  const fee = Math.round(price * 0.1);
+  document.getElementById('sale-cr-price').textContent = fmt(price);
+  document.getElementById('sale-cr-fee').textContent = '-' + fmt(fee);
+  document.getElementById('sale-cr-cost').textContent = '-' + fmt(cost);
+  document.getElementById('sale-cr-profit').textContent = fmt(price - fee - cost);
+}
+
+async function saveSale() {
+  const date = document.getElementById('sale-date').value;
+  const price = parseFloat(document.getElementById('sale-price').value) || 0;
+  if (!date || !price) { toast('日付と販売価格は必須です', 'error'); return; }
+  const btn = document.getElementById('sale-save-btn');
+  btn.disabled = true; setSaving(true);
+  try {
+    const chipId = document.getElementById('sale-chip').value;
+    const chip = chips.find(c => c.id === chipId);
+    const sale = {
+      id: genId(), date, chipId: chipId || null,
+      chipName: chip ? chip.name : '', chipNumber: chip ? chip.number : '',
+      price, cost: parseFloat(document.getElementById('sale-cost').value) || 0,
+      note: document.getElementById('sale-note').value.trim(), createdAt: new Date().toISOString(),
+    };
+    await dbUpsert('sales', saleToDb(sale));
+    sales.push(sale);
+    if (chip) {
+      chip.status = 'sold';
+      await dbUpsert('chips', chipToDb(chip));
+    }
+    renderSales(); closeModal('modal-sale');
+    toast('売上を記録しました 🎉', 'success');
+  } catch (e) { toast('保存エラー: ' + e.message, 'error'); }
+  btn.disabled = false; setSaving(false);
+}
+
+async function deleteSale(id) {
+  if (!confirm('この売上記録を削除しますか？')) return;
+  setSaving(true);
+  try {
+    await dbDelete('sales', id); sales = sales.filter(s => s.id !== id);
+    renderSales(); toast('削除しました');
+  } catch (e) { toast('削除エラー: ' + e.message, 'error'); }
+  setSaving(false);
+}
+
+function renderSales() {
+  updateMonthFilter('sale-filter-month', sales.map(s => s.date));
+  const fm = document.getElementById('sale-filter-month').value;
+  let filtered = sales.filter(s => !fm || s.date.startsWith(fm)).sort((a, b) => b.date.localeCompare(a.date));
+  const tbody = document.getElementById('sales-tbody'), empty = document.getElementById('sales-empty');
+  if (filtered.length === 0) { tbody.innerHTML = ''; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = filtered.map(s => {
+    const chip = chips.find(c => c.id === s.chipId);
+    const fee = Math.round(s.price * 0.1), profit = s.price - fee - (s.cost || 0);
+    return `<tr><td>${s.date}</td><td>${s.chipNumber?'No.'+escHtml(s.chipNumber):'-'}</td><td>${escHtml(s.chipName||(chip?chip.name:'-'))}</td><td>${fmt(s.price)}</td><td style="color:#c62828">-${fmt(fee)}</td><td style="color:${profit>=0?'#388e3c':'#c62828'};font-weight:700">${fmt(profit)}</td><td style="font-size:13px;color:var(--gray)">${escHtml(s.note||'')}</td><td><button class="btn btn-sm btn-danger" onclick="deleteSale('${s.id}')">削除</button></td></tr>`;
+  }).join('');
+}
+
+// ===== EXPENSES =====
+function openExpenseModal() {
+  document.getElementById('exp-date').value = today();
+  document.getElementById('exp-amount').value = '';
+  document.getElementById('exp-desc').value = '';
+  document.getElementById('modal-expense').classList.add('open');
+}
+
+async function saveExpense() {
+  const date = document.getElementById('exp-date').value;
+  const amount = parseFloat(document.getElementById('exp-amount').value) || 0;
+  if (!date || !amount) { toast('日付と金額は必須です', 'error'); return; }
+  const btn = document.getElementById('expense-save-btn');
+  btn.disabled = true; setSaving(true);
+  try {
+    const exp = {
+      id: genId(), date, category: document.getElementById('exp-cat').value,
+      amount, desc: document.getElementById('exp-desc').value.trim(), createdAt: new Date().toISOString(),
+    };
+    await dbUpsert('expenses', expenseToDb(exp));
+    expenses.push(exp); renderExpenses(); closeModal('modal-expense');
+    toast('支出を記録しました', 'success');
+  } catch (e) { toast('保存エラー: ' + e.message, 'error'); }
+  btn.disabled = false; setSaving(false);
+}
+
+async function deleteExpense(id) {
+  if (!confirm('この支出記録を削除しますか？')) return;
+  setSaving(true);
+  try {
+    await dbDelete('expenses', id); expenses = expenses.filter(e => e.id !== id);
+    renderExpenses(); toast('削除しました');
+  } catch (e) { toast('削除エラー: ' + e.message, 'error'); }
+  setSaving(false);
+}
+
+function renderExpenses() {
+  updateMonthFilter('expense-filter-month', expenses.map(e => e.date));
+  const fm = document.getElementById('expense-filter-month').value;
+  const fc = document.getElementById('expense-filter-cat').value;
+  let filtered = expenses.filter(e => (!fm||e.date.startsWith(fm)) && (!fc||e.category===fc)).sort((a,b)=>b.date.localeCompare(a.date));
+  const tbody = document.getElementById('expenses-tbody'), empty = document.getElementById('expenses-empty');
+  if (filtered.length === 0) { tbody.innerHTML = ''; empty.style.display = ''; document.getElementById('expense-total').textContent = ''; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = filtered.map(e => `<tr><td>${e.date}</td><td>${escHtml(e.category)}</td><td style="color:#c62828;font-weight:700">${fmt(e.amount)}</td><td style="font-size:13px">${escHtml(e.desc||'')}</td><td><button class="btn btn-sm btn-danger" onclick="deleteExpense('${e.id}')">削除</button></td></tr>`).join('');
+  document.getElementById('expense-total').textContent = `合計: ${fmt(filtered.reduce((s,e)=>s+e.amount,0))}`;
+}
+
+function updateMonthFilter(selectId, dates) {
+  const sel = document.getElementById(selectId), cur = sel.value;
+  const months = [...new Set(dates.map(d => d.slice(0,7)))].sort().reverse();
+  sel.innerHTML = '<option value="">すべての月</option>' + months.map(m => `<option value="${m}"${m===cur?' selected':''}>${m.replace('-','年')}月</option>`).join('');
+}
+
+// ===== CALCULATOR =====
+function calcPrice() {
+  const price = parseFloat(document.getElementById('calc-price').value)||0;
+  const cost = parseFloat(document.getElementById('calc-cost').value)||0;
+  const shipping = parseFloat(document.getElementById('calc-shipping').value)||0;
+  const packing = parseFloat(document.getElementById('calc-packing').value)||0;
+  const fee = Math.round(price*0.1), profit = price-fee-shipping-cost-packing;
+  document.getElementById('cr-price').textContent = fmt(price);
+  document.getElementById('cr-fee').textContent = '-'+fmt(fee);
+  document.getElementById('cr-shipping').textContent = '-'+fmt(shipping);
+  document.getElementById('cr-cost').textContent = '-'+fmt(cost);
+  document.getElementById('cr-packing').textContent = '-'+fmt(packing);
+  const el = document.getElementById('cr-profit');
+  el.textContent = fmt(profit); el.style.color = profit>=0?'#388e3c':'#c62828';
+}
+
+function calcReverse() {
+  const p = parseFloat(document.getElementById('rev-profit').value)||0;
+  const c = parseFloat(document.getElementById('rev-cost').value)||0;
+  const s = parseFloat(document.getElementById('rev-shipping').value)||0;
+  const k = parseFloat(document.getElementById('rev-packing').value)||0;
+  document.getElementById('rev-result').textContent = fmt(Math.ceil((p+c+s+k)/0.9));
+}
+
+// ===== CALENDAR =====
+let calYear = new Date().getFullYear(), calMonth = new Date().getMonth(), calSelectedDay = null;
+function calPrev() { calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); }
+function calNext() { calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCalendar(); }
+function calToday() { calYear=new Date().getFullYear(); calMonth=new Date().getMonth(); calSelectedDay=null; renderCalendar(); }
+
+function renderCalendar() {
+  const DAYS = ['日','月','火','水','木','金','土'];
+  const monthStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}`;
+  document.getElementById('cal-month-label').textContent = `${calYear}年${calMonth+1}月`;
+  const mSales = sales.filter(s=>s.date.startsWith(monthStr));
+  const mExp = expenses.filter(e=>e.date.startsWith(monthStr));
+  const mRev = mSales.reduce((s,x)=>s+x.price,0);
+  const mFees = mSales.reduce((s,x)=>s+Math.round(x.price*0.1),0);
+  const mCosts = mSales.reduce((s,x)=>s+(x.cost||0),0);
+  const mExpTotal = mExp.reduce((s,x)=>s+x.amount,0);
+  const mProfit = mRev-mFees-mCosts-mExpTotal;
+  document.getElementById('cal-summary').innerHTML = `
+    <div class="stat-card green" style="padding:12px;"><div class="stat-label">今月の売上</div><div class="stat-value green" style="font-size:18px;">${fmt(mRev)}</div></div>
+    <div class="stat-card red" style="padding:12px;"><div class="stat-label">今月の支出</div><div class="stat-value red" style="font-size:18px;">${fmt(mExpTotal+mFees+mCosts)}</div></div>
+    <div class="stat-card blue" style="padding:12px;"><div class="stat-label">今月の利益</div><div class="stat-value ${mProfit>=0?'green':'red'}" style="font-size:18px;">${fmt(mProfit)}</div></div>
+    <div class="stat-card" style="padding:12px;"><div class="stat-label">今月の件数</div><div class="stat-value" style="font-size:18px;">${mSales.length}件</div></div>
+  `;
+  const dayMap = {};
+  sales.forEach(s=>{if(!dayMap[s.date])dayMap[s.date]={sales:[],expenses:[],chips:[]};dayMap[s.date].sales.push(s);});
+  expenses.forEach(e=>{if(!dayMap[e.date])dayMap[e.date]={sales:[],expenses:[],chips:[]};dayMap[e.date].expenses.push(e);});
+  chips.forEach(c=>{if(!c.createdAt)return;const d=c.createdAt.slice(0,10);if(!dayMap[d])dayMap[d]={sales:[],expenses:[],chips:[]};dayMap[d].chips.push(c);});
+  const firstDay=new Date(calYear,calMonth,1).getDay();
+  const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  const daysInPrev=new Date(calYear,calMonth,0).getDate();
+  const todayStr=new Date().toISOString().slice(0,10);
+  let g=`<div class="cal-weekdays">${DAYS.map(d=>`<div class="cal-weekday">${d}</div>`).join('')}</div><div class="cal-days">`;
+  for(let i=firstDay-1;i>=0;i--){const d=daysInPrev-i;const ds=`${calYear}-${String(calMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;g+=rCalDay(d,ds,true,false,false);}
+  for(let d=1;d<=daysInMonth;d++){const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;g+=rCalDay(d,ds,false,ds===todayStr,ds===calSelectedDay,dayMap[ds],(firstDay+d-1)%7);}
+  const total=Math.ceil((firstDay+daysInMonth)/7)*7;
+  for(let d=1;d<=total-firstDay-daysInMonth;d++){const nm=calMonth+2>12?1:calMonth+2;const ny=calMonth+2>12?calYear+1:calYear;const ds=`${ny}-${String(nm).padStart(2,'0')}-${String(d).padStart(2,'0')}`;g+=rCalDay(d,ds,true,false,false);}
+  g+='</div>';
+  document.getElementById('cal-grid').innerHTML=g;
+  if(calSelectedDay)showCalDayDetail(calSelectedDay,dayMap[calSelectedDay]);
+}
+
+function rCalDay(d,dateStr,otherMonth,isToday,isSelected,data,dow) {
+  let cls='cal-day';
+  if(otherMonth)cls+=' other-month';if(isToday)cls+=' today';if(isSelected)cls+=' selected';
+  if(dow===0)cls+=' sun';if(dow===6)cls+=' sat';
+  let dots='';
+  if(data){
+    if(data.sales.length>0)dots+=`<div class="cal-dot-item sale">💰 ${fmt(data.sales.reduce((s,x)=>s+x.price,0))}</div>`;
+    if(data.expenses.length>0)dots+=`<div class="cal-dot-item expense">🧾 ${fmt(data.expenses.reduce((s,x)=>s+x.amount,0))}</div>`;
+    if(data.chips.length>0)dots+=`<div class="cal-dot-item chip">💅 ${data.chips.length}点追加</div>`;
+  }
+  return `<div class="${cls}" onclick="selectCalDay('${dateStr}')"><div class="cal-day-num">${d}</div><div class="cal-dot-list">${dots}</div></div>`;
+}
+
+function selectCalDay(dateStr){calSelectedDay=calSelectedDay===dateStr?null:dateStr;renderCalendar();}
+
+function showCalDayDetail(dateStr,data){
+  const panel=document.getElementById('cal-day-detail'),content=document.getElementById('cal-day-content');
+  const[y,m,d]=dateStr.split('-');
+  document.getElementById('cal-day-title').textContent=`📋 ${y}年${parseInt(m)}月${parseInt(d)}日`;
+  if(!data||(data.sales.length+data.expenses.length+data.chips.length===0)){
+    content.innerHTML='<p style="color:var(--gray);font-size:14px;padding:8px 0;">この日の記録はありません</p>';
+    panel.style.display='';return;
+  }
+  let html='';
+  data.sales.forEach(s=>{const fee=Math.round(s.price*0.1),profit=s.price-fee-(s.cost||0);html+=`<div class="cal-day-detail-item sale"><div class="cal-day-detail-icon">💰</div><div class="cal-day-detail-body"><div class="cal-day-detail-title">${escHtml(s.chipName||'-')}</div><div class="cal-day-detail-sub">手数料: ${fmt(fee)} / 利益: <span style="color:${profit>=0?'#388e3c':'#c62828'};font-weight:700">${fmt(profit)}</span></div>${s.note?`<div class="cal-day-detail-sub">${escHtml(s.note)}</div>`:''}</div><div class="cal-day-detail-amount" style="color:#388e3c">${fmt(s.price)}</div></div>`;});
+  data.expenses.forEach(e=>{html+=`<div class="cal-day-detail-item expense"><div class="cal-day-detail-icon">🧾</div><div class="cal-day-detail-body"><div class="cal-day-detail-title">${escHtml(e.category)}</div>${e.desc?`<div class="cal-day-detail-sub">${escHtml(e.desc)}</div>`:''}</div><div class="cal-day-detail-amount" style="color:#c62828">-${fmt(e.amount)}</div></div>`;});
+  data.chips.forEach(c=>{html+=`<div class="cal-day-detail-item chip"><div class="cal-day-detail-icon">💅</div><div class="cal-day-detail-body"><div class="cal-day-detail-title">[No.${escHtml(c.number)}] ${escHtml(c.name)}</div><div class="cal-day-detail-sub">チップ追加</div></div><div class="cal-day-detail-amount" style="color:var(--pink-dark)">${c.price?fmt(c.price):'-'}</div></div>`;});
+  content.innerHTML=html; panel.style.display='';
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ===== INIT =====
+initApp();
+</script>
+</body>
+</html>
